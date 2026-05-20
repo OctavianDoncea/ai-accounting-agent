@@ -14,7 +14,7 @@ class JournalEntryStatus(str, enum.Enum):
 
 
 class JournalEntry(Base):
-    __tablename__ = 'journal-entries'
+    __tablename__ = 'journal_entries'
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     invoice_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('invoices.id', ondelete='SET NULL'), nullable=True, index=True)

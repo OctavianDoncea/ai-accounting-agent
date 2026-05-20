@@ -3,7 +3,7 @@ from app.database import SessionLocal
 from app.models.chart_of_accounts import ChartOfAccount
 from app.seed.chart_of_accounts_seed import CHART_OF_ACCOUNTS_SEED
 
-logging.basicConfig(level=logging.Info, format='%(asctime)s [%(lelvelname)s] %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 log = logging.getLogger('seed')
 
 def seed_chart_of_accounts() -> None:
@@ -38,5 +38,5 @@ def seed_chart_of_accounts() -> None:
     finally:
         db.close()
 
-if __name__ = '__main__':
+if __name__ == '__main__':
     seed_chart_of_accounts()

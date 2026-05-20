@@ -11,7 +11,7 @@ st.divider()
 st.subheader('System status')
 
 try:
-    resp = requests.get(f'[BACKEND_URL]/health', timeout=5)
+    resp = requests.get(f'{BACKEND_URL}/health', timeout=5)
     resp.raise_for_status()
     health = resp.json()
 except Exception as e:
@@ -26,7 +26,7 @@ with col1:
         st.caption(f"Accounts seeded: **{health['database']['chart_of_accounts_count']}**")
     else:
         st.error('Database down')
-        st.caption(health['database'].get['error'] or '')
+        st.caption(health['database'].get('error') or '')
 
 with col2:
     if health['ollama']['ok']:
@@ -62,9 +62,9 @@ else:
     df = df[['account_code', 'account_name', 'account_type', 'normal_balance', 'description']]
     df.columns = ['Code', 'Name', 'Type', 'Normal balance', 'Description']
 
-    types = sorted(df['Type'].unique().toList())
+    types = sorted(df['Type'].unique().tolist())
     selected = st.multiselect('Filter by account type', types, default=types)
-    df = df['Type'].isin(selected)
+    df = df[df['Type'].isin(selected)]
 
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width='stretch', hide_index=True)
     st.caption(f'{len(df)} accounts shown')
