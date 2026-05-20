@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_image: accounting_postgres
+    container_name: accounting_postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -12,7 +12,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD_SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -24,18 +24,18 @@ services:
     container_name: accounting_backend
     restart: unless-stopped
     environment:
-      - POSTGRES_USER: ${POSTGRES_USER}
-      - POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      - POSTGRES_DB: ${POSTGRES_DB}
-      - POSTGRES_HOST: ${POSTGRES_HOST}
-      - POSTGRES_PORT: ${POSTGRES_PORT}
-      - OLLAMA_URL: ${OLLAMA_URL}
-      - OLLAMA_MODEL: ${OLLAMA_MODEL}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      OLLAMA_URL: ${OLLAMA_URL}
+      OLLAMA_MODEL: ${OLLAMA_MODEL}
     ports:
       - "8000:8000"
     depends_on:
       postgres:
-        - condition: service_healthy
+        condition: service_healthy
     volumes:
       - ./backend:/app
       - ./uploads:/app/uploads
