@@ -17,7 +17,7 @@ class JournalEntry(Base):
     __tablename__ = 'journal-entries'
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    invoice_id: Mapped[uuid.UUId | None] = mapped_column(UUID(as_uuid=True), ForeignKey('invoices.id', ondelete='SET NULL'), nullable=True, index=True)
+    invoice_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('invoices.id', ondelete='SET NULL'), nullable=True, index=True)
     entry_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     status: Mapped[JournalEntryStatus] = mapped_column(Enum(JournalEntryStatus, name='journal_entry_status'), default=JournalEntryStatus.DRAFT, nullable=False, index=True)
@@ -36,7 +36,7 @@ class JournalEntryLines(Base):
     __tablename__ = 'journal_entry_lines'
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    journal_entry_id: Mapped[uuid.UUId] = mapped_column(UUID(as_uuid=True), ForeignKey('journal_entries.id', ondelete='CASCADE'), nullable=False, index=True)
+    journal_entry_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('journal_entries.id', ondelete='CASCADE'), nullable=False, index=True)
     account_id: Mapped[int] = mapped_column(ForeignKey('chart_of_accounts.id'), nullable=False, index=True)
     debit_amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False, default=Decimal('0'))
     credit_amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False, default=Decimal('0'))
