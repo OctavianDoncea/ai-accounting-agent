@@ -12,3 +12,6 @@ streamlit
 requests
 pandas
 reportlab
+pytesseract
+pdf2image
+pypdf
