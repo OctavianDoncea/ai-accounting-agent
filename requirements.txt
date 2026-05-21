@@ -15,3 +15,5 @@ reportlab
 pytesseract
 pdf2image
 pypdf
+Pillow
+python-dateutil
