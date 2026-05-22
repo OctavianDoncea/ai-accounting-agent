@@ -49,6 +49,7 @@ CHART_OF_ACCOUNTS_SEED = [
     {'code': '6700', 'name': 'Insurance Expense', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Business, liability, health insurance'},
     {'code': '6800', 'name': 'Depreciation Expense', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Depreciation of long-term assets'},
     {'code': '6900', 'name': 'Bank Fees', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Bank charges, wire fees, merchant fees'},
+    {'code': '6920', 'name': 'Sales Tax Expense', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Non-recoverable sales tax paid on purchases'},
     {'code': '7000', 'name': 'Repairs and Maintenance', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Repairs to equipment, building, or facilities'},
     {'code': '7100', 'name': 'Training and Education', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Courses, conferences, books'},
     {'code': '7900', 'name': 'Miscellaneous Expense', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Uncategorized expoenses'},
