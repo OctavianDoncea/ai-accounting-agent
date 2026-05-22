@@ -9,7 +9,7 @@ DATE_TOLERANCE_DAYS = 3
 def find_duplicate(db: Session, invoice: Invoice) -> Invoice | None:
     base_query = db.query(Invoice).filter(
         Invoice.id != invoice.id,
-        Invoice.status != InvoiceStatus.DUPLICATED,
+        Invoice.status != InvoiceStatus.DUPLICATE,
         Invoice.status != InvoiceStatus.FAILED
     )
 
