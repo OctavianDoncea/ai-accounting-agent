@@ -62,7 +62,7 @@ if uploaded is not None and st.button('Process invoice', type='primary'):
                     [
                         {'Description': it['description'], 'Qty': it['quantity'], 'Unit price': it['unit_price'], 'Amount': it['amount']} for it in items
                     ],
-                    use_container_width=True, hide_index=True
+                    width='stretch', hide_index=True
                 )
 
         st.caption('See the full agent audit trail ont the Invoices page.')

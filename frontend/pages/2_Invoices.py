@@ -46,7 +46,7 @@ df = pd.DataFrame(invoices)
 df['status'] = df['status'].map(lambda s: STATUS_BADGE.get(s, s))
 view = df[['filename', 'vendor_name', 'invoice_date', 'total', 'currency', 'status']].copy()
 view.columns = ['File', 'Vendor', 'Date', 'Total', 'Currency', 'Status']
-st.dataframe(view, use_container_width=True, hide_index=True)
+st.dataframe(view, width='stretch', hide_index=True)
 
 st.divider()
 
@@ -71,7 +71,7 @@ if items:
     st.write('**Line items**')
     st.dataframe(
         [{'Description': it['description'], 'Qty': it['quantity'], 'Unit price': it['unit_price'], 'Amount': it['amount']} for it in items],
-        use_container_width=True, hide_index=True
+        width='stretch', hide_index=True
     )
 
 # Reprocess button
