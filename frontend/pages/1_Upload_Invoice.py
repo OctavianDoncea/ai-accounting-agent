@@ -65,5 +65,5 @@ if uploaded is not None and st.button('Process invoice', type='primary'):
                     width='stretch', hide_index=True
                 )
 
-        st.caption('See the full agent audit trail ont the Invoices page.')
+        st.caption('See the full agent audit trail on the Invoices page.')
         st.page_link('pages/2_Invoices.py', label=' Go to Invoices ->')
