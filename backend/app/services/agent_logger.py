@@ -27,7 +27,7 @@ def write_log(db:Session,
         status=status,
         input_data=_json_safe(input_data),
         output_data=_json_safe(output_data),
-        reasoning=reasoning,
+        reasoning=reasoning or error_message or 'Step completed.',
         confidence_score=confidence_score,
         error_message=error_message,
         duration_ms=duration_ms,
@@ -45,6 +45,7 @@ def time_step(db: Session, *, invoice_id: uuid.UUID | None, agent_name: str, ste
     try:
         yield ctx
     except Exception as e:
+        db.rollback()
         duration = int((time.monotonic() - started) * 1000)
         write_log(
             db,
@@ -53,24 +54,29 @@ def time_step(db: Session, *, invoice_id: uuid.UUID | None, agent_name: str, ste
             step_name=step_name,
             status=AgentLogStatus.FAILED,
             input_data=input_data,
+            reasoning=f'Step failed: {e}',
             error_message=str(e),
             duration_ms=duration,
         )
         raise
     else:
         duration = int((time.monotonic() - started) * 1000)
-        write_log(
-            db,
-            invoice_id=invoice_id,
-            agent_name=agent_name,
-            step_name=step_name,
-            status=ctx.get('status', AgentLogStatus.SUCCESS),
-            input_data=input_data,
-            output_data=ctx.get('output_data'),
-            reasoning=ctx.get('reasoning'),
-            confidence_score=ctx.get('confidence_score'),
-            duration_ms=duration,
-        )
+        try:
+            write_log(
+                db,
+                invoice_id=invoice_id,
+                agent_name=agent_name,
+                step_name=step_name,
+                status=ctx.get('status', AgentLogStatus.SUCCESS),
+                input_data=input_data,
+                output_data=ctx.get('output_data'),
+                reasoning=ctx.get('reasoning') or 'Step completed successfully.',
+                confidence_score=ctx.get('confidence_score'),
+                duration_ms=duration,
+            )
+        except Exception:
+            db.rollback()
+            raise
 
 def _json_safe(data: dict | None) -> dict | None:
     if data is None:

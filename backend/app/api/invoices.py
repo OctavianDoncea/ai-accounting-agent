@@ -63,7 +63,7 @@ def get_invoice_logs(invoice_id: uuid.UUID, db: Session = Depends(get_db)) -> li
     invoice = db.get(Invoice, invoice_id)
     if invoice is None:
         raise HTTPException(status_code=404, detail=f'Invoice {invoice_id} not found')
-    return (db.query(AgentLog).filter(AgentLog.invoide_id == invoice_id).order_by(AgentLog.created_at.asc()).all())
+    return (db.query(AgentLog).filter(AgentLog.invoice_id == invoice_id).order_by(AgentLog.created_at.asc()).all())
 
 @router.post('/{invoice_id}/reprocess', response_model=UploadResponse)
 def reprocess_invoice(invoice_id: uuid.UUID, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> UploadResponse:

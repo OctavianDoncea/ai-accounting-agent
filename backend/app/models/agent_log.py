@@ -21,7 +21,7 @@ class AgentLog(Base):
     step_name: Mapped[str] = mapped_column(String(100), nullable=False)
     input_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     output_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    reasoning: Mapped[str | None] = mapped_column(Text, nullable=False)
+    reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     status: Mapped[AgentLogStatus] = mapped_column(Enum(AgentLogStatus, name='agent_log_status'), nullable=False, index=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

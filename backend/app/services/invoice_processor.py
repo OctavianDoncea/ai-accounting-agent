@@ -21,6 +21,7 @@ def process_invoice(invoice_id: uuid.UUID) -> None:
         invoice = db.get(Invoice, invoice_id)
         if invoice is None:
             log.error(f'process_invoice: invoice {invoice_id} not found')
+            return
         _run_pipeline(db, invoice)
     except Exception:
         log.exception(f'Unhandled error processing invoice {invoice_id}')
@@ -37,7 +38,8 @@ def _run_pipeline(db: Session, invoice: Invoice) -> None:
             ctx['output_data'] = {'method': method, 'char_count': len(text)}
             ctx['reasoning'] = f'Extracted {len(text)} characters via {method}.'
     except Exception as e:
-        _fail(db, invoice, f'OCR failed: {e}')
+        _fail(db, invoice.id, f'OCR failed: {e}')
+        return
 
     # Step 2: Extraction agent
     try:
@@ -71,13 +73,13 @@ def _run_pipeline(db: Session, invoice: Invoice) -> None:
                 'total': float(extracted.total) if extracted.total is not None else None,
                 'line_item_count': len(extracted.line_items)
             }
-            ctx['reasoning'] = extracted.reasoning
+            ctx['reasoning'] = extracted.reasoning or 'Extraction completed successfully.'
             ctx['confidence_score'] = extracted.confidence
     except OllamaError as e:
-        _fail(db, invoice, f'Extraction failed (is Ollama running?): {e}')
+        _fail(db, invoice.id, f'Extraction failed (is Ollama running?): {e}')
         return
     except Exception as e:
-        _fail(db, invoice, f'Extraction failed: {e}')
+        _fail(db, invoice.id, f'Extraction failed: {e}')
         return
 
     # Step 3: Duplicate detection
@@ -115,8 +117,14 @@ def _run_pipeline(db: Session, invoice: Invoice) -> None:
     db.add(invoice)
     db.commit()
 
-def _fail(db: Session, invoice: Invoice, message: str) -> None:
-    log.error(f'Invoice {invoice.id} failed: {message}')
+def _fail(db: Session, invoice_id: uuid.UUID, message: str) -> None:
+    log.error(f'Invoice {invoice_id} failed: {message}')
+    db.rollback()
+    invoice = db.get(Invoice, invoice_id)
+
+    if invoice is None:
+        return
+    
     invoice.status = InvoiceStatus.FAILED
     invoice.error_message = message
     db.add(invoice)

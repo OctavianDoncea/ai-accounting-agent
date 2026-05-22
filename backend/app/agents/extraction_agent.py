@@ -50,7 +50,7 @@ Return only the JSON object."""
 
 class ExtractionAgent:
     def __init__(self, client: OllamaClient | None = None):
-        self.client() = client or OllamaClient()
+        self.client = client or OllamaClient()
 
     def extract(self, invoice_text: str) -> ExtractedInvoice:
         """Run extraction with one retry on validation failure"""
