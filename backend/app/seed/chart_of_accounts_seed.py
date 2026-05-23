@@ -15,7 +15,7 @@ CHART_OF_ACCOUNTS_SEED = [
     {'code': '2000', 'name': 'Accounts Payable', 'type': AccountType.LIABILITY, 'balance': NormalBalance.CREDIT, 'description': 'Money owed to vendors and suppliers'},
     {'code': '2100', 'name': 'Credit Card Payable', 'type': AccountType.LIABILITY, 'balance': NormalBalance.CREDIT, 'description': 'Outstanding credit card balances'},
     {'code': '2200', 'name': 'Sales Tax Payable', 'type': AccountType.LIABILITY, 'balance': NormalBalance.CREDIT, 'description': 'Sales tax collected and owed to authorities'},
-    {'code': '2300', 'name': 'Payroll liabilities', 'type': AccountType.LIABILITY, 'balance': NormalBalance.CREDIT, 'description': 'Wages, taxes, amd benefits owed to employees'},
+    {'code': '2300', 'name': 'Payroll Liabilities', 'type': AccountType.LIABILITY, 'balance': NormalBalance.CREDIT, 'description': 'Wages, taxes, and benefits owed to employees'},
     {'code': '2500', 'name': 'Short-Term Loans', 'type': AccountType.LIABILITY, 'balance': NormalBalance.CREDIT, 'description': 'Loans due within a year'},
     {'code': '2600', 'name': 'Long-Term Loans', 'type': AccountType.LIABILITY, 'balance': NormalBalance.CREDIT, 'description': 'Loans due after one year'},
 
@@ -35,12 +35,12 @@ CHART_OF_ACCOUNTS_SEED = [
 
     # Operating expenses (debit normal balance)
     {'code': '6000', 'name': 'Rent Expense', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Rent for office space or facility'},
-    {'code': '6010', 'name': 'Utilities expense', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Electricity, water, gas, internet'},
+    {'code': '6010', 'name': 'Utilities Expense', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Electricity, water, gas, internet'},
     {'code': '6020', 'name': 'Telephone Expense', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Phone and mobile services'},
     {'code': '6100', 'name': 'Salaries and Wages', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Employee compensation'},
-    {'code': '6110', 'name': "payroll Taxes", 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Employer-pais payroll taxes'},
+    {'code': '6110', 'name': "Payroll Taxes", 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Employer-paid payroll taxes'},
     {'code': '6200', 'name': 'Software Subscriptions', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'SaaS tools, cloud services, software licenses'},
-    {'code': '6210', 'name': 'Cload Hosting', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'AWS, GCP, Azure, hosting providers'},
+    {'code': '6210', 'name': 'Cloud Hosting', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'AWS, GCP, Azure, hosting providers'},
     {'code': '6300', 'name': 'Office Supplies', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Stationery, consumables'},
     {'code': '6400', 'name': 'Travel Expense', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Flights, hotels, ground transportation'},
     {'code': '6410', 'name': 'Meals and Entertainment', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Business meals and entertainment'},
@@ -52,5 +52,5 @@ CHART_OF_ACCOUNTS_SEED = [
     {'code': '6920', 'name': 'Sales Tax Expense', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Non-recoverable sales tax paid on purchases'},
     {'code': '7000', 'name': 'Repairs and Maintenance', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Repairs to equipment, building, or facilities'},
     {'code': '7100', 'name': 'Training and Education', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Courses, conferences, books'},
-    {'code': '7900', 'name': 'Miscellaneous Expense', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Uncategorized expoenses'},
+    {'code': '7900', 'name': 'Miscellaneous Expense', 'type': AccountType.EXPENSE, 'balance': NormalBalance.DEBIT, 'description': 'Uncategorized expenses'},
 ]
