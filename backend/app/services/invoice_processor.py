@@ -183,7 +183,7 @@ def _classify_and_post(db: Session, invoice: Invoice) -> None:
     # Step 5: Build the journal entry (deterministic)
     builder_notes: list[str] = []
     try:
-        with time_step(db, invoice_id=invoice.db, agent_name='journal_entry_builder', step_name='build_entry') as ctx:
+        with time_step(db, invoice_id=invoice.id, agent_name='journal_entry_builder', step_name='build_entry') as ctx:
             entry, notes = build_journal_entry(db, invoice, result)
             builder_notes = notes
             db.add(entry)

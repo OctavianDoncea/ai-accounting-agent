@@ -71,10 +71,10 @@ def get_invoice_logs(invoice_id: uuid.UUID, db: Session = Depends(get_db)) -> li
 
 @router.post('/{invoice_id}/reprocess', response_model=UploadResponse)
 def reprocess_invoice(invoice_id: uuid.UUID, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> UploadResponse:
-    invoice = db.get(Invoice, get_db)
+    invoice = db.get(Invoice, invoice_id)
     if invoice is None:
         raise HTTPException(status_code=404, detail='Invoice not found.')
-    invoice.sttus = InvoiceStatus.PENDING
+    invoice.status = InvoiceStatus.PENDING
     invoice.error_message = None
     db.add(invoice)
     db.commit()
@@ -82,7 +82,7 @@ def reprocess_invoice(invoice_id: uuid.UUID, background_tasks: BackgroundTasks, 
     background_tasks.add_task(process_invoice, invoice_id)
     return (UploadResponse(invoice_id=invoice_id, status=InvoiceStatus.PENDING, message='Reprocessing started.'))
 
-@router.get('/{invoice_id}/journal_entry', response_class=JournalEntryOut)
+@router.get('/{invoice_id}/journal_entry', response_model=JournalEntryOut)
 def get_invoice_journal_entry(invoice_id: uuid.UUID, db: Session = Depends(get_db)) -> JournalEntryOut:
     invoice = db.get(Invoice, invoice_id)
     if invoice is None:
@@ -97,5 +97,5 @@ def reclassify(invoice_id: uuid.UUID, background_tasks: BackgroundTasks, db: Ses
     invoice = db.get(Invoice, invoice_id)
     if invoice is None:
         raise HTTPException(status_code=404, detail='Invoice not found.')
-    background_tasks.add_tasks(reclassify_invoice, invoice_id)
+    background_tasks.add_task(reclassify_invoice, invoice_id)
     return UploadResponse(invoice_id=invoice_id, status=InvoiceStatus.PENDING, message='Reclassification started.')

@@ -70,7 +70,7 @@ class ClassificationAgent:
                 log.warning(f'Classification attempt {attempt} failed: {e}')
         raise OllamaError(f'Classification failed after retries: {last_error}')
 
-    def _normalize(self, raw: dict, invoice) -> ClassificationResult:
+    def _normalize(self, raw: dict) -> ClassificationResult:
         classifications = []
         for c in raw.get('classifications') or []:
             if not isinstance(c, dict):

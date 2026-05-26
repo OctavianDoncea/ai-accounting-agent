@@ -26,7 +26,7 @@ def _serialize(db: Session, entry: JournalEntry) -> JournalEntryOut:
 
     return JournalEntryOut(
         id=entry.id,
-        invoice_id=entry.invoice.id,
+        invoice_id=entry.invoice_id,
         entry_date=entry.entry_date,
         description=entry.description,
         status=entry.status,
