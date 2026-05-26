@@ -95,7 +95,7 @@ def parse_bank_statement(content: bytes | str) -> list[dict]:
             'description': description[:500],
             'amount': abs(amount),
             'direction': direction,
-            'raw_row': {h: v for k, v in row.items() if k}
+            'raw_row': {k: v for k, v in row.items() if k}
         })
 
     if not transactions:
