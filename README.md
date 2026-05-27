@@ -4,39 +4,27 @@ An AI-powered accounting automation system that ingests invoices, extracts struc
  
 ## Status
  
-After extraction, a classification agent maps each line item to a GL account, deterministic Python builds a balanced double-entry journal entry, and a validation agent verifies it before posting. Entries that don't balance, have low classification confidence, or required a fallback account are held as drafts for review rather than posted.
+**Phase 4: Bank Reconciliation Agent** — complete
  
-### Design note: LLM for judgment, code for arithmetic
- 
-The classification agent uses the LLM *only* to choose an account code per line item — a judgment task. The journal entry itself (debits, credits, totals, balancing) is constructed by deterministic Python, and a separate rule-based validation agent checks it. LLMs are unreliable at arithmetic but good at classification, so this split keeps the money math correct and auditable.
+Upload a bank-statement CSV and the reconciliation agent matches each payment against the posted journal entries, surfacing three things: payments matched to recorded bills, payments with no matching invoice (possible missing invoices), and posted bills with no payment (possibly unpaid). Matching is deterministic — amount + date window + fuzzy vendor-name matching — so it stays fast and reliable across statements with many rows.
  
 ## Architecture
  
 ```
-Upload → OCR → Extraction agent → Duplicate check
-                                        │
-                                        ▼
-                          ┌──────────────────────────┐
-                          │   Classification agent    │  ← LLM: account code per line
-                          │   (judgment only)         │
-                          └──────────────────────────┘
-                                        │
-                                        ▼
-                          ┌──────────────────────────┐
-                          │  Journal entry builder    │  ← Python: build double-entry
-                          │  (deterministic)          │
-                          └──────────────────────────┘
-                                        │
-                                        ▼
-                          ┌──────────────────────────┐
-                          │   Validation agent        │  ← Python: debits == credits,
-                          │   (deterministic rules)   │     accounts valid, no negatives
-                          └──────────────────────────┘
-                                        │
-                              ┌─────────┴─────────┐
-                              ▼                   ▼
-                         POSTED              NEEDS_REVIEW
-                    (valid + confident)   (imbalance / low conf / fallback)
+Bank statement CSV
+       │
+       ▼
+┌────────────────────┐   transactions   ┌──────────────────────────┐
+│ Bank statement     │ ───────────────▶ │  Reconciliation agent     │
+│ parser             │                  │  (deterministic matching) │
+│ (signed / debit-   │                  │  amount + date + fuzzy    │
+│  credit / typed)   │                  │  vendor-name similarity   │
+└────────────────────┘                  └──────────────────────────┘
+                                                     │
+                          ┌──────────────────────────┼──────────────────────────┐
+                          ▼                           ▼                          ▼
+                     MATCHED                    UNMATCHED payment          UNMATCHED journal entry
+                  (bill was paid)            (possible missing invoice)   (posted bill, possibly unpaid)
 ```
  
 ## Prerequisites
@@ -98,6 +86,9 @@ The frontend page should show a green "Backend OK" status.
 | POST | `/invoices/{id}/reclassify` | Re-run only classification + validation |
 | GET | `/journal-entries` | List all journal entries |
 | GET | `/journal-entries/{id}` | Journal entry detail with debit/credit lines |
+| POST | `/reconciliation/upload` | Upload a bank CSV; returns the reconciliation report |
+| GET | `/reconciliation/runs` | List past reconciliation runs |
+| GET | `/reconciliation/runs/{id}` | Full report for a reconciliation run |
  
 ## Trying it out
  
@@ -150,15 +141,19 @@ ai-accounting-agent/
 │       ├── agents/
 │       │   ├── extraction_agent.py     # LLM: extract fields from text
 │       │   ├── classification_agent.py # LLM: map line items to GL accounts
-│       │   └── validation_agent.py     # deterministic double-entry validation
+│       │   ├── validation_agent.py     # deterministic double-entry validation
+│       │   └── reconciliation_agent.py # deterministic bank matching
 │       ├── services/
 │       │   ├── ocr.py                  # PDF/image → text
 │       │   ├── ollama_client.py        # local LLM client
 │       │   ├── duplicate_detection.py
 │       │   ├── journal_entry_builder.py# deterministic double-entry construction
+│       │   ├── bank_statement_parser.py# CSV → normalized transactions
+│       │   ├── reconciliation_processor.py
 │       │   ├── agent_logger.py         # audit-trail helper
 │       │   └── invoice_processor.py    # pipeline orchestrator
-│       └── api/                        # health, chart_of_accounts, invoices, journal_entries
+│       └── api/                        # health, chart_of_accounts, invoices,
+│                                       #   journal_entries, reconciliation
 └── frontend/
     ├── Dockerfile
     ├── requirements.txt
@@ -166,7 +161,8 @@ ai-accounting-agent/
     └── pages/
         ├── 1_Upload_Invoice.py
         ├── 2_Invoices.py               # detail + journal entry + audit trail
-        └── 3_Journal.py                # all journal entries
+        ├── 3_Journal.py                # all journal entries
+        └── 4_Reconciliation.py         # bank statement matching
 ```
  
 ## Useful commands
