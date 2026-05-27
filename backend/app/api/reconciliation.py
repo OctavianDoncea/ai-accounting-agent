@@ -1,0 +1,81 @@
+import logging
+import os
+import uuid
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.models.bank_transaction import BankTransaction, BankTransactionStatus, ReconciliationRun
+from app.models.invoice import Invoice
+from app.models.journal_entry import JournalEntry, JournalEntryStatus
+from app.schemas.reconciliation import BankTransactionOut, ReconciliationSummaryOut, ReconciliationRunOut, UnmatchedJournalEntryOut
+from app.services.bank_statement_parser import BankStatementParseError
+from app.services.reconciliation_processor import run_reconciliation
+
+router = APIRouter(prefix='/reconciliation', tags=['reconciliation'])
+log = logging.getLogger(__name__)
+
+MAX_FILE_BYTES = 10 * 1024 * 1024 # 10 MB
+
+@router.post('/upload', response_model=ReconciliationSummaryOut, status_code=201)
+async def upload_statement(file: UploadFile = File(...), db: Session = Depends(get_db)) -> ReconciliationSummaryOut:
+    ext = os.path.splitext(file.filename or '')[1].lower()
+    if ext not in {'.csv', '.txt'}:
+        raise HTTPException(status_code=400, detail='Please upload a .csv bank statement.')
+
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail='Uploaded file is empty.')
+    if len(contents) > MAX_FILE_BYTES:
+        raise HTTPException(status_code=400, detail='File exceeds 10 MB limit.')
+
+    try:
+        run = run_reconciliation(db, file.filename or 'statement.csv', contents)
+    except BankStatementParseError as e:
+        raise HTTPException(status_code=400, detail=f'Failed to parse bank statement: {e}')
+
+    return _build_report(db, run)
+
+@router.get('/runs', response_model=list[ReconciliationRunOut])
+def list_runs(limit: int = 50, db: Session = Depends(get_db)) -> list[ReconciliationRunOut]:
+    return db.query(ReconciliationRun).order_by(ReconciliationRun.created_at.desc()).limit(limit).all()
+
+@router.get('/runs/{run_id}', response_model=ReconciliationSummaryOut)
+def get_run(run_id: uuid.UUID, db: Session = Depends(get_db)) -> ReconciliationSummaryOut:
+    run = db.get(ReconciliationRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail='Reconciliation run not found.')
+    return _build_report(db, run)
+
+def _build_report(db: Session, run: ReconciliationRun) -> ReconciliationSummaryOut:
+    txns = db.query(BankTransaction).filter(BankTransaction.run_id == run.id).order_by(BankTransaction.transaction_date.desc()).all()
+    matched = [t for t in txns if t.status == BankTransactionStatus.MATCHED]
+    unmatched = [t for t in txns if t.status == BankTransactionStatus.UNMATCHED]
+    ignored = [t for t in txns if t.status == BankTransactionStatus.IGNORED]
+
+    matched_je_ids = {t.matched_journal_entry_id for t in matched if t.matched_journal_entry_id}
+    posted = db.query(JournalEntry, Invoice).outerjoin(Invoice, JournalEntry.invoice_id == Invoice.id).filter(JournalEntry.status == JournalEntry.POSTED).all()
+    unmatched_journal = [
+        UnmatchedJournalEntryOut(
+            journal_entry_id=je.id,
+            entry_date=je.entry_date,
+            vendor_name=(inv.vendor_name if inv and inv.vendor_name else je.description) or '-',
+            amount=je.total_credit,
+        )
+        for je, inv in posted if je.id not in matched_je_ids
+    ]
+
+    return ReconciliationSummaryOut(
+        id=run.id,
+        filename=run.filename,
+        created_at=run.created_at,
+        bank_transaction_count=run.bank_transaction_count,
+        matched_count=run.matched_count,
+        unmatched_bank_count=run.unmatched_bank_count,
+        unmatched_journal_count=run.unmatched_journal_count,
+        total_matched_amount=run.total_matched_amount,
+        summary=run.summary,
+        matched=[BankTransactionOut.model_validate(t) for t in matched],
+        unmatched_bank=[BankTransactionOut.model_validate(t) for t in unmatched],
+        ignored=[BankTransactionOut.model_validate(t) for t in ignored],
+        unmatched_journal=unmatched_journal,
+    )
