@@ -1,7 +1,10 @@
 import logging
 import os
 import uuid
+import csv
+import io
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.bank_transaction import BankTransaction, BankTransactionStatus, ReconciliationRun
@@ -38,6 +41,34 @@ async def upload_statement(file: UploadFile = File(...), db: Session = Depends(g
 @router.get('/runs', response_model=list[ReconciliationRunOut])
 def list_runs(limit: int = 50, db: Session = Depends(get_db)) -> list[ReconciliationRunOut]:
     return db.query(ReconciliationRun).order_by(ReconciliationRun.created_at.desc()).limit(limit).all()
+
+@router.get('/runs/{run_id}/export')
+def export_run(run_id: uuid.UUID, db: Session = Depends(get_db)) -> Response:
+    """Export a reconciliation run as CSV (one row per matched transaction)."""
+    run = db.get(ReconciliationRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail='Reconciliation run not found.')
+
+    transactions = db.query(BankTransaction).filter(BankTransaction.run_id == run_id).order_by(BankTransaction.transaction_date.desc()).all()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "Date", "Description", "Amount", "Direction", "Status",
+        "Matched Journal Entry", "Confidence", "Reasoning"
+    ])
+    for t in transactions:
+        writer.writerow([
+            t.transaction_date.isoformat() if t.transaction_date else '',
+            t.description,
+            f'{t.amount:,.2f}',
+            t.direction.value,
+            t.status.value,
+            str(t.matched_journal_entry_id) if t.matched_journal_entry_id else '',
+            f'{t.match_confidence:.2f}' if t.match_confidence is not None else '',
+            t.match_reasoning or '',
+        ])
+    return Response(content=buf.getvalue(), media_type='text/csv', headers={'Content-Disposition': f'attachment; filename="reconciliation_run_{run_id}.csv"'})
 
 @router.get('/runs/{run_id}', response_model=ReconciliationSummaryOut)
 def get_run(run_id: uuid.UUID, db: Session = Depends(get_db)) -> ReconciliationSummaryOut:
