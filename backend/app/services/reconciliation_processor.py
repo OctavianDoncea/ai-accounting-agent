@@ -42,7 +42,7 @@ def run_reconciliation(db: Session, filename: str, content: bytes) -> Reconcilia
     run.unmatched_bank_count = len(outcome.unmatched_transactions)
     run.unmatched_journal_count = len(outcome.unmatched_candidates)
     run.total_matched_amount = matched_amount
-    run_summary = (
+    run.summary = (
         f'{len(outcome.matched)} matched, '
         f'{len(outcome.unmatched_transactions)} unmatched payment(s), '
         f'{len(outcome.unmatched_candidates)} posted entr(y/ies) without a matching payment.'

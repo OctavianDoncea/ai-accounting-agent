@@ -53,7 +53,7 @@ def _build_report(db: Session, run: ReconciliationRun) -> ReconciliationSummaryO
     ignored = [t for t in txns if t.status == BankTransactionStatus.IGNORED]
 
     matched_je_ids = {t.matched_journal_entry_id for t in matched if t.matched_journal_entry_id}
-    posted = db.query(JournalEntry, Invoice).outerjoin(Invoice, JournalEntry.invoice_id == Invoice.id).filter(JournalEntry.status == JournalEntry.POSTED).all()
+    posted = db.query(JournalEntry, Invoice).outerjoin(Invoice, JournalEntry.invoice_id == Invoice.id).filter(JournalEntry.status == JournalEntryStatus.POSTED).all()
     unmatched_journal = [
         UnmatchedJournalEntryOut(
             journal_entry_id=je.id,

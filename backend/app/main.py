@@ -1,7 +1,7 @@
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import health, chart_of_accounts, invoices, journal_entries
+from app.api import health, chart_of_accounts, invoices, journal_entries, reconciliation
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
 log = logging.getLogger('app')
@@ -13,6 +13,7 @@ app.include_router(health.router)
 app.include_router(chart_of_accounts.router)
 app.include_router(invoices.router)
 app.include_router(journal_entries.router)
+app.include_router(reconciliation.router)
 
 @app.get('/', tags=['root'])
 def root() -> dict:
