@@ -50,7 +50,7 @@ for e in entries:
                 'Credit': f"{credit:,.2f}" if credit > 0 else '',
                 'Memo': ln.get('description') or '',
             })
-        st.dataframe(pd.DataFrame(rows), width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(rows), width='stretch', hide_index=True)
         balanced = abs(float(e['total_debit']) - float(e['total_credit'])) <= 0.01
         st.caption(
             f"Total debit: {float(e['total_debit']):,.2f} - "

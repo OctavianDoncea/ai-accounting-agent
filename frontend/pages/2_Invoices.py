@@ -79,7 +79,7 @@ if items:
     st.write('**Line items**')
     st.dataframe(
         [{'Description': it['description'], 'Qty': it['quantity'], 'Unit price': it['unit_price'], 'Amount': it['amount']} for it in items],
-        width=True,
+        width='stretch',
         hide_index=True,
     )
 
@@ -116,7 +116,7 @@ else:
             'Memo': ln.get('description') or '',
             'Confidence': f"{ln['confidence_score']:.2f}" if ln.get('confidence_score') is not None else '',
         })
-    st.dataframe(rows, width=True, hide_index=True)
+    st.dataframe(rows, width='stretch', hide_index=True)
 
 # Audit trail
 st.subheader('Agent audit trail')
