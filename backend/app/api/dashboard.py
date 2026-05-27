@@ -43,8 +43,8 @@ class DashboardSummary(BaseModel):
     recent_runs: list[RecentRunItem] = Field(default_factory=list)
 
 
-@router.get('/summary', response_model=DashboradSummary)
-def get_summary(db: Session = Depends(get_db)) -> DashboradSummary:
+@router.get('/summary', response_model=DashboardSummary)
+def get_summary(db: Session = Depends(get_db)) -> DashboardSummary:
     invoice_counts = {s.value: 0 for s in InvoiceStatus}
     for status, n in db.query(Invoice.status, func.count()).group_by(Invoice.status).all():
         invoice_counts[status.value] = n
