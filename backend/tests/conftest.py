@@ -40,7 +40,7 @@ def mock_llm():
         yield {'extraction': e_inst, 'classification': c_inst}
 
 # Domain factories
-def cloudhost_extract_resopnse() -> dict:
+def cloudhost_extract_response() -> dict:
     return {
         'vendor_name': 'CloudHost Solutions Inc.',
         'invoice_number': 'CH-2026-00871',
