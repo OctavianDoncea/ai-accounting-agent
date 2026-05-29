@@ -33,5 +33,5 @@ types = sorted(df['Type'].unique().tolist())
 selected = st.multiselect('Filter by type', types, default=types)
 df = df[df['Type'].isin(selected)]
 
-st.dataframe(df, use_container_width=True, hide_index=True)
+st.dataframe(df, width='stretch', hide_index=True)
 st.caption(f'{len(df)} accounts down')

@@ -76,7 +76,7 @@ with left:
             }
             for inv in summary["recent_invoices"]
         ])
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width='stretch', hide_index=True)
     st.page_link("pages/2_Invoices.py", label="View all invoices →")
 
 with right:
@@ -95,7 +95,7 @@ with right:
             }
             for r in summary["recent_runs"]
         ])
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width='stretch', hide_index=True)
     st.page_link("pages/4_Reconciliation.py", label="Go to Reconciliation →")
 
 st.divider()
