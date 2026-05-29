@@ -1,7 +1,13 @@
+import os
+import tempfile
 import uuid
 from datetime import date
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
+
+# /app/uploads is Docker-only; use a writable dir for pytest (CI and local).
+os.environ.setdefault('UPLOAD_DIR', tempfile.mkdtemp(prefix='test_uploads_'))
+
 import pytest
 from alembic import command
 from alembic.config import Config
