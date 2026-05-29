@@ -40,7 +40,8 @@ class TestDebitCreditColumns:
         csv = "Date,Memo,Debit,Credit\n2026-05-05,ZERO,0,0\n2026-05-06,REAL,100,\n"
         txns = parse_bank_statement(csv)
         assert len(txns) == 1
-        assert txns[0]['direction'] == 'REAL'
+        assert txns[0]['description'] == 'REAL'
+        assert txns[0]['direction'] == TransactionDirection.OUTFLOW
 
 
 class TestAmountPlusType:

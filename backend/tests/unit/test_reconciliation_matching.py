@@ -92,7 +92,7 @@ class TestReconcile:
         txns = [_txn(500.00, 'CLOUDHOST SOLUTIONS')]
         cands = [_cand(414.60, 'CloudHost Solutions Inc.')]
         out = reconcile(txns, cands)
-        assert out.matched() == []
+        assert out.matched == []
         assert len(out.unmatched_transactions) == 1
         assert out.unmatched_transactions[0].status == BankTransactionStatus.UNMATCHED
 
@@ -100,9 +100,9 @@ class TestReconcile:
         txns = [_txn(414.60, 'CLOUDHOST', txn_date=date(2027, 1, 1))]
         cands = [_cand(414.60, 'CloudHost Solutions Inc.', entry_date=date(2026, 4, 15))]
         out = reconcile(txns, cands)
-        assert out.matched() == []
+        assert out.matched == []
 
-    def test_inflows_are_generated(self):
+    def test_inflows_are_ignored(self):
         txns = [_txn(5000.00, 'PAYROLL DEPOSIT', direction=TransactionDirection.INFLOW)]
         cands = []
         out = reconcile(txns, cands)
@@ -110,11 +110,11 @@ class TestReconcile:
         assert txns[0].status == BankTransactionStatus.IGNORED
 
     def test_candidate_consumed_only_once(self):
-        txns = [_txn((100, 'ACME PYMT', _txn(100, 'ACME PYMT')))]
+        txns = [_txn(100, 'ACME PYMT'), _txn(100, 'ACME PYMT 2')]
         cands = [_cand(100, 'Acme Corp')]
         out = reconcile(txns, cands)
         assert len(out.matched) == 1
-        assert len(out.unmatched_candidates) == 1
+        assert len(out.unmatched_transactions) == 1
 
     def test_unmatched_candidate_reported(self):
         txns = []
@@ -123,8 +123,8 @@ class TestReconcile:
         assert len(out.unmatched_candidates) == 1
 
     def test_picks_best_name_match_when_amounts_tie(self):
-        txns = [_txn(100), 'OFFICE DEPOT PURCHASE']
-        cands = [_cand(100, 'Random Vendor Co', _cand(100, 'Office Depot'))]
+        txns = [_txn(100, 'OFFICE DEPOT PURCHASE')]
+        cands = [_cand(100, 'Random Vendor Co'), _cand(100, 'Office Depot')]
         out = reconcile(txns, cands)
         assert len(out.matched) == 1
         assert out.matched[0][1].vendor_name == 'Office Depot'

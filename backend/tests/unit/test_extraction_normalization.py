@@ -114,7 +114,7 @@ class TestNormalize:
         assert result.currency == 'USD'
 
     def test_truncate_three_letter_currency(self):
-        result = self._agent()._normalize({'currency': 'US dollars', 'line_items': []})
+        result = self._agent()._normalize({'currency': 'United States dollars', 'line_items': []})
         assert result.currency == 'UNI'
 
     def test_non_dict_line_items_are_skipped(self):

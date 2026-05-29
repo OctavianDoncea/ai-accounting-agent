@@ -1,7 +1,7 @@
 import uuid
 from datetime import date
 from decimal import Decimal
-from app.models.bank_transaction import BankTransactionStatus
+from app.models.bank_transaction import BankTransactionStatus, TransactionDirection
 from app.models.invoice import Invoice
 from app.models.journal_entry import JournalEntry, JournalEntryLines, JournalEntryStatus
 from app.services.reconciliation_processor import run_reconciliation
@@ -66,22 +66,22 @@ class TestReconciliation:
         run = run_reconciliation(db, 'stmt.csv', csv)
 
         assert run.matched_count == 1
-        assert run.unmatched_bank_count == 1
+        assert run.unmatched_bank_count == 0
+        assert run.unmatched_journal_count == 1
 
     def test_inflows_ignored(self, db):
         csv = (
             b"Date,Description,Amount\n"
             b"2026-05-02,PAYROLL DEPOSIT,5000.00\n"
-            b"2026-05-05,COFFEE,-4.50\n"
         )
         run = run_reconciliation(db, 'stmt.csv', csv)
-        assert run.bank_transaction_count == 2
+        assert run.bank_transaction_count == 1
 
         from app.models.bank_transaction import BankTransaction
         txns = db.query(BankTransaction).filter(BankTransaction.run_id == run.id).all()
-        statuses = {t.status for t in txns}
-        assert BankTransactionStatus.IGNORED in statuses
-        assert BankTransactionStatus.UNMATCHED not in statuses
+        deposit = next(t for t in txns if t.description == 'PAYROLL DEPOSIT')
+        assert deposit.status == BankTransactionStatus.IGNORED
+        assert deposit.direction == TransactionDirection.INFLOW
 
     def test_amount_match_but_unrelated_name_stays_unmatched(self, db):
         _post_journal_entry(db, vendor='CloudHost Solutions Inc.', total=Decimal('100.00'), entry_date=date(2026, 4, 15))

@@ -1,14 +1,17 @@
 import uuid
+import pytest
 from app.models.agent_log import AgentLog
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.journal_entry import JournalEntry, JournalEntryStatus
 from app.services import invoice_processor
-from tests.conftest import cloudhost_classification_response, cloudhost_extract_response
+from tests.conftest import SAMPLE_PDF, cloudhost_classification_response, cloudhost_extract_response
+
+pytestmark = pytest.mark.usefixtures('mock_ocr')
 
 def _post_cloudhost(db, mock_llm) -> uuid.UUID:
     mock_llm['extraction'].chat_json.return_value = cloudhost_extract_response()
     mock_llm['classification'].chat_json.return_value = cloudhost_classification_response()
-    inv = Invoice(id=uuid.uuid4(), filename='invoice_cloudhost.pdf', file_path='samples/invoice_cloudhost.pdf', status=InvoiceStatus.PENDING)
+    inv = Invoice(id=uuid.uuid4(), filename='invoice_cloudhost.pdf', file_path=SAMPLE_PDF, status=InvoiceStatus.PENDING)
     db.add(inv)
     db.commit()
     iid = inv.id
@@ -17,10 +20,6 @@ def _post_cloudhost(db, mock_llm) -> uuid.UUID:
     return iid
 
 class TestFullPipeline:
-    def test_happy_path_posts(self, db, mock_llm):
-        iid = _post_cloudhost(db, mock_llm)
-        db = db.bind.connect()
-    
     def test_happy_path_produces_posted_invoice_and_journal_entry(self, db, mock_llm):
         iid = _post_cloudhost(db, mock_llm)
 
@@ -51,11 +50,10 @@ class TestReviewPaths:
         resp['confidence'] = 0.3
         mock_llm['extraction'].chat_json.return_value = resp
         mock_llm['classification'].chat_json.return_value = cloudhost_classification_response()
-        inv = Invoice(id=uuid.uuid4(), filename='invoice_cloudhost.pdf', file_path='/samples/invoice_cloudhost.pdf', status=InvoiceStatus.PENDING)
+        inv = Invoice(id=uuid.uuid4(), filename='invoice_cloudhost.pdf', file_path=SAMPLE_PDF, status=InvoiceStatus.PENDING)
         db.add(inv)
         db.commit()
         iid = inv.id
-        db.close()
         invoice_processor.process_invoice(iid)
 
         from app.database import SessionLocal
@@ -71,11 +69,10 @@ class TestReviewPaths:
         mock_llm['extraction'].chat_json.return_value = resp
         mock_llm['classification'].chat_json.return_value = cloudhost_classification_response()
 
-        inv = Invoice(id=uuid.uuid4(), filename='x.pdf', file_path='/samples/invoice_cloudhost.pdf', status=InvoiceStatus.PENDING)
+        inv = Invoice(id=uuid.uuid4(), filename='x.pdf', file_path=SAMPLE_PDF, status=InvoiceStatus.PENDING)
         db.add(inv)
         db.commit()
         iid = inv.id
-        db.close()
         invoice_processor.process_invoice(iid)
 
         from app.database import SessionLocal
@@ -90,11 +87,10 @@ class TestReviewPaths:
         mock_llm['extraction'].chat_json.return_value = resp
         mock_llm['classification'].chat_json.return_value = cloudhost_classification_response()
 
-        inv = Invoice(id=uuid.uuid4(), filename='x.pdf', file_path='/samples/invoice_cloudhost.pdf', status=InvoiceStatus.PENDING)
+        inv = Invoice(id=uuid.uuid4(), filename='x.pdf', file_path=SAMPLE_PDF, status=InvoiceStatus.PENDING)
         db.add(inv)
         db.commit()
         iid = inv.id
-        db.close()
         invoice_processor.process_invoice(iid)
 
         from app.database import SessionLocal
@@ -111,11 +107,10 @@ class TestReviewPaths:
         bad['classifications'][0]['account_code'] = '9999'
         mock_llm['classification'].chat_json.return_value = bad
 
-        inv = Invoice(id=uuid.uuid4(), filename='x.pdf', file_path='/samples/invoice_cloudhost.pdf', status=InvoiceStatus.PENDING)
+        inv = Invoice(id=uuid.uuid4(), filename='x.pdf', file_path=SAMPLE_PDF, status=InvoiceStatus.PENDING)
         db.add(inv)
         db.commit()
         iid = inv.id
-        db.close()
         invoice_processor.process_invoice(iid)
 
         from app.database import SessionLocal
@@ -127,21 +122,23 @@ class TestReviewPaths:
 
 class TestDuplicate:
     def test_second_upload_of_same_invoice_is_flagged_duplicate(self, db, mock_llm):
-        _post_cloudhost(db, mock_llm)
- 
-        from app.database import SessionLocal
-        s = SessionLocal()
-        # Now upload the same one again
-        inv2 = Invoice(id=uuid.uuid4(), filename="invoice_cloudhost.pdf",
-                       file_path="/samples/invoice_cloudhost.pdf",
-                       status=InvoiceStatus.PENDING)
-        s.add(inv2); s.commit(); iid2 = inv2.id
-        s.close()
+        iid1 = _post_cloudhost(db, mock_llm)
+
+        inv2 = Invoice(
+            id=uuid.uuid4(),
+            filename='invoice_cloudhost.pdf',
+            file_path=SAMPLE_PDF,
+            status=InvoiceStatus.PENDING,
+        )
+        db.add(inv2)
+        db.commit()
+        iid2 = inv2.id
         invoice_processor.process_invoice(iid2)
- 
+
+        from app.database import SessionLocal
         s = SessionLocal()
         inv2 = s.get(Invoice, iid2)
         assert inv2.status == InvoiceStatus.DUPLICATE
-        # No journal entry for the duplicate
         assert s.query(JournalEntry).filter(JournalEntry.invoice_id == iid2).first() is None
+        assert s.query(JournalEntry).filter(JournalEntry.invoice_id == iid1).first() is not None
         s.close()

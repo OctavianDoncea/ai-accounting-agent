@@ -3,13 +3,13 @@ from app.schemas.journal_entry import ClassificationResult, LineClassification
 from app.services.journal_entry_builder import build_journal_entry
 from tests.conftest import make_extracted_invoice
 
-def _classification(line_codes: list[str], tex_code: str | None = '6920') -> ClassificationResult:
+def _classification(line_codes: list[str], tax_code: str | None = '6920') -> ClassificationResult:
     return ClassificationResult(
         classifications=[
             LineClassification(line_index=i, account_code=c, confidence=0.9)
             for i, c in enumerate(line_codes)
         ],
-        tax_account_code=tex_code,
+        tax_account_code=tax_code,
     )
 
 class TestBalancedConstruction:
