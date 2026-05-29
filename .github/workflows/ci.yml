@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: accounting
+          POSTGRES_PASSWORD: accounting_dev_pass
+          POSTGRES_DB: accounting_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U accounting -d accounting_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGRES_USER: accounting
+      POSTGRES_PASSWORD: accounting_dev_pass
+      POSTGRES_DB: accounting_db
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc \
+            libpq-dev \
+            tesseract-ocr \
+            poppler-utils
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Prepare sample invoice fixtures
+        run: |
+          sudo mkdir -p /samples
+          sudo cp samples/*.pdf /samples/
+
+      - name: Run database migrations
+        working-directory: backend
+        run: alembic upgrade head
+
+      - name: Seed chart of accounts
+        working-directory: backend
+        run: python -m app.seed.run_seed
+
+      - name: Run tests
+        working-directory: backend
+        run: pytest tests/ --cov=app --cov-report=term-missing
