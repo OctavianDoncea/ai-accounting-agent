@@ -2,69 +2,112 @@ import os
 import pandas as pd
 import requests
 import streamlit as st
+from ui_helpers import format_money, format_date
 
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://backend:8000')
 
 st.set_page_config(page_title='AI Accounting Agent', layout='wide')
-st.title('AI Accounting Agent')
-st.divider()
-st.subheader('System status')
 
+# Header
+st.title('AI Accounting Agent')
+st.caption('Automated invoice ingestion, classification, and reconciliation, powered by local LLM agents.')
+
+# System status
 try:
-    resp = requests.get(f'{BACKEND_URL}/health', timeout=5)
-    resp.raise_for_status()
-    health = resp.json()
+    health = requests.get(f'{BACKEND_URL}/health', timeout=3).json()
+    db_ok = health['database']['ok']
+    ollama_ok = health['ollama']['ok']
 except Exception as e:
     st.error(f'Backend unreachable at `{BACKEND_URL}`: {e}')
     st.stop()
 
-col1, col2, col3 = st.columns(3)
+status_cols = st.columns([1, 1, 6])
+status_cols[0].markdown(f"**Database**  \n{'Online' if db_ok else 'Offline'}")
+status_cols[1].markdown(f"**Ollama**  \n{'Online' if ollama_ok else 'Offline'}")
 
-with col1:
-    if health['database']['ok']:
-        st.success('Database OK')
-        st.caption(f"Accounts seeded: **{health['database']['chart_of_accounts_count']}**")
-    else:
-        st.error('Database down')
-        st.caption(health['database'].get('error') or '')
-
-with col2:
-    if health['ollama']['ok']:
-        st.success('Ollama OK')
-        st.caption(f"Model: `{health['ollama']['model']}`")
-    else:
-        st.warning('Ollama unreachable')
-        st.caption(f"URL: `{health['ollama']['url']}`")
-
-with col3:
-    if health['status'] == 'ok':
-        st.success('Overall: OK')
-    else:
-        st.warning(f"Overall: {health['status']}")
+if not ollama_ok:
+    status_cols[2].caption("Ollama isn't reachable. Invoice processing will fail until it's running.")
 
 st.divider()
 
-st.subheader('Chart of Accounts')
-st.caption('Seeded automatically on backend startup. This is the GL the agents will classify against.')
-
+# Summary metrics
 try:
-    resp = requests.get(f'{BACKEND_URL}/chart-of-accounts', timeout=5)
-    resp.raise_for_status()
-    accounts = resp.json()
-except Exception as e:
-    st.error(f'Could not load chart of accounts: {e}')
+    summary = requests.get(f"{BACKEND_URL}/dashboard/summary", timeout=5).json()
+except Exception as exc:
+    st.error(f"Could not load dashboard: {exc}")
     st.stop()
 
-if not accounts:
-    st.info('Chart of accounts is empty.')
-else:
-    df = pd.DataFrame(accounts)
-    df = df[['account_code', 'account_name', 'account_type', 'normal_balance', 'description']]
-    df.columns = ['Code', 'Name', 'Type', 'Normal balance', 'Description']
+m = st.columns(4)
+m[0].metric("Invoices processed", summary["total_invoices"])
+m[1].metric("Journal entries posted", summary["journal_entries_posted"])
+m[2].metric("Total posted value", format_money(summary["total_posted_value"]))
+m[3].metric("Reconciliation runs", summary["reconciliation_runs"])
 
-    types = sorted(df['Type'].unique().tolist())
-    selected = st.multiselect('Filter by account type', types, default=types)
-    df = df[df['Type'].isin(selected)]
+# Optional sub-stats row
+counts = summary["invoice_counts"]
+needs_review = counts.get("NEEDS_REVIEW", 0)
+draft = summary["journal_entries_draft"]
+if needs_review or draft or counts.get("FAILED"):
+    sub = st.columns(4)
+    if needs_review:
+        sub[0].warning(f"🟠 **{needs_review}** invoice(s) need review")
+    if draft:
+        sub[1].warning(f"📝 **{draft}** draft journal entr{'y' if draft == 1 else 'ies'}")
+    if counts.get("FAILED"):
+        sub[2].error(f"❌ **{counts['FAILED']}** failed invoice(s)")
+    if counts.get("DUPLICATE"):
+        sub[3].info(f"🟡 **{counts['DUPLICATE']}** duplicate(s)")
 
-    st.dataframe(df, width='stretch', hide_index=True)
-    st.caption(f'{len(df)} accounts shown')
+st.divider()
+
+# Two-column: recent invoices + recent reconciliation runs
+left, right = st.columns(2)
+
+with left:
+    st.subheader("Recent invoices")
+    if not summary["recent_invoices"]:
+        st.caption("No invoices yet. Try the Upload Invoice page.")
+    else:
+        df = pd.DataFrame([
+            {
+                "File": inv["filename"],
+                "Vendor": inv["vendor_name"] or "-",
+                "Total": format_money(inv["total"], inv["currency"]) if inv["total"] else "-",
+            }
+            for inv in summary["recent_invoices"]
+        ])
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    st.page_link("pages/2_Invoices.py", label="View all invoices →")
+
+with right:
+    st.subheader("Recent reconciliations")
+    if not summary["recent_runs"]:
+        st.caption("No reconciliation runs yet. Try the Reconciliation page.")
+    else:
+        df = pd.DataFrame([
+            {
+                "When": format_date(r["created_at"]),
+                "File": r["filename"],
+                "Matched": r["matched_count"],
+                "Unmatched": r["unmatched_bank_count"],
+                "Unpaid": r["unmatched_journal_count"],
+                "Total matched": format_money(r["total_matched_amount"]),
+            }
+            for r in summary["recent_runs"]
+        ])
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    st.page_link("pages/4_Reconciliation.py", label="Go to Reconciliation →")
+
+st.divider()
+
+# Quick actions
+st.subheader("Quick actions")
+qa = st.columns(4)
+with qa[0]:
+    st.page_link("pages/1_Upload_Invoice.py", label="⬆Upload an invoice")
+with qa[1]:
+    st.page_link("pages/4_Reconciliation.py", label="Reconcile statement")
+with qa[2]:
+    st.page_link("pages/6_Reports.py", label="View reports")
+with qa[3]:
+    st.page_link("pages/5_Chart_of_Accounts.py", label="Chart of accounts")
