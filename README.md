@@ -23,6 +23,36 @@ A core design call worth highlighting: **the LLM is used only for judgment tasks
 | **Reconciliation** | Upload a new statement or open any past run; three result tables (matched / unmatched payments / unpaid bills) plus a CSV export |
 | **Chart of Accounts** | Filterable GL account list with per-type counts |
 | **Reports** | Trial balance (debits, credits, balance per account) and a spending-by-category bar chart |
+
+## Screenshots
+
+### Overview
+
+The home dashboard shows system health, key metrics, and recent activity at a glance.
+
+![Home dashboard with KPIs and recent activity](docs/screenshots/dashboard.png)
+
+### Invoice processing
+
+Browse posted invoices, inspect line items, and drill into the full agent audit trail for any upload.
+
+![Invoices list with detail view](docs/screenshots/invoices.png)
+
+![Agent audit trail for a processed invoice](docs/screenshots/audit-trail.png)
+
+### Bank reconciliation
+
+Upload a bank CSV and see matched payments, unmatched transactions, and the reasoning behind each match.
+
+![Bank reconciliation results](docs/screenshots/reconciliation.png)
+
+### Reports
+
+Trial balance and spending-by-category views are built from posted journal entries.
+
+![Trial balance report](docs/screenshots/trial-balance.png)
+
+![Spending by category chart](docs/screenshots/expense-breakdown.png)
  
 ## Architecture
  
@@ -144,6 +174,8 @@ curl http://localhost:8000/invoices/<invoice_id>
 ai-accounting-agent/
 ├── docker-compose.yml
 ├── .env.example
+├── docs/
+│   └── screenshots/                # UI screenshots for the README
 ├── samples/                        # sample invoice PDFs + generator
 │   ├── generate_samples.py
 │   └── invoice_*.pdf
