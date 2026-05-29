@@ -3,6 +3,8 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 import pytest
+from alembic import command
+from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 from app.database import SessionLocal
@@ -12,6 +14,19 @@ from app.models.journal_entry import JournalEntry, JournalEntryStatus
 
 # Database
 TABLES_TO_TRUNCATE = ('bank_transactions', 'reconciliation_runs', 'journal_entry_lines', 'journal_entries', 'agent_logs', 'invoice_line_items', 'invoices')
+
+SAMPLE_PDF = '/samples/invoice_cloudhost.pdf'
+SAMPLE_OCR_TEXT = (
+    'CloudHost Solutions Inc. Invoice CH-2026-00871 '
+    'Cloud hosting Object storage Managed DB subtotal tax total 414.60'
+)
+
+@pytest.fixture(scope='session', autouse=True)
+def _ensure_schema():
+    """Apply migrations and seed before any test touches the DB."""
+    command.upgrade(Config('alembic.ini'), 'head')
+    from app.seed.run_seed import seed_chart_of_accounts
+    seed_chart_of_accounts()
 
 @pytest.fixture
 def db():
@@ -29,6 +44,12 @@ def client(db):
     return TestClient(app)
 
 # LLM mocking
+@pytest.fixture
+def mock_ocr():
+    with patch('app.services.invoice_processor.ocr.extract_text') as m:
+        m.return_value = (SAMPLE_OCR_TEXT, 'pdf_text_layer')
+        yield m
+
 @pytest.fixture
 def mock_llm():
     with patch('app.agents.extraction_agent.OllamaClient') as me, \
@@ -72,7 +93,7 @@ def cloudhost_classification_response() -> dict:
 
 @pytest.fixture
 def cloudhost_invoice(db):
-    inv = Invoice(id=uuid.uuid4(), filename='invoice_cloudhost.pdf', file_path='samples/invoice_cloudhost.pdf', status=InvoiceStatus.PENDING)
+    inv = Invoice(id=uuid.uuid4(), filename='invoice_cloudhost.pdf', file_path=SAMPLE_PDF, status=InvoiceStatus.PENDING)
     db.add(inv)
     db.commit()
 

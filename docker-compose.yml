@@ -39,6 +39,7 @@ services:
     volumes:
       - ./backend:/app
       - ./uploads:/app/uploads
+      - ./samples:/samples:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
