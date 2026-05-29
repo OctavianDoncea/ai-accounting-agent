@@ -84,7 +84,6 @@ def _draw_invoice(path: str, data: dict) -> None:
     c.showPage()
     c.save()
  
- 
 SAMPLES = [
     {
         "filename": "invoice_cloudhost.pdf",
@@ -145,9 +144,46 @@ SAMPLES = [
         "total": 2100.00,
         "notes": "Payment due within 30 days of invoice date.",
     },
+    {
+        'filename': 'invoice_marketingsaas.pdf',
+        'vendor': 'PixelPulse Analytics',
+        'vendor_address': '88 Market Street, San Francisco, CA 94103',
+        'invoice_number': 'PP-INV-9921',
+        'invoice_date': '2026-04-28',
+        'due_date': '2026-05-28',
+        'bill_to': 'Acme Startup LLC',
+        'currency_symbol': '$',
+        'line_items': [
+            {'description': 'MArketing analytics platform - Pro plan (April)', 'qty': 1, 'unit_price': 199.00, 'amount': 199.00},
+            {'description': 'Additional team seats (3)', 'qty': 3, 'unit_price': 29.00, 'amount': 87.00},
+        ],
+        'subtotal': 286.00,
+        'tax_rate': '8.5%',
+        'tax': 24.31,
+        'total': 310.31,
+        'notes': 'Subscription auto-renews monthly. Cancel anytime.'
+    },
+    {
+        'filename': 'invoice_accountant.pdf',
+        'vendor': 'Reeves Bookkeeping Co.',
+        'vendor_address': '240 PArk Avenue, Boston, MA 02116',
+        'invoice_number': 'RB-1247',
+        'invoice_date': '2026-05-03',
+        'due_date': '2026-06-02',
+        'bill_to': 'Acme Startup LLC',
+        'currency_symbol': '$',
+        'line_items': [
+            {"description": "Monthly bookkeeping - April", "qty": 1, "unit_price": 450.00, "amount": 450.00},
+            {"description": "Sales tax filing assistance", "qty": 1, "unit_price": 150.00, "amount": 150.00}
+        ],
+        'subtotal': 600.00,
+        'tax_rate': '0%',
+        'tax': 0.00,
+        'total': 600.00,
+        'notes': 'Thank you for your continued business.'
+    }
 ]
- 
- 
+
 def main() -> None:
     for sample in SAMPLES:
         path = os.path.join(SAMPLES_DIR, sample["filename"])
