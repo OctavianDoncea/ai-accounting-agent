@@ -41,7 +41,7 @@ def build_journal_entry(db: Session, invoice: Invoice, classification: Classific
         account = accounts.get(cls.account_code) if cls else None
         confidence = cls.confidence if cls else None
 
-        if accounts is None:
+        if account is None:
             account = accounts.get(FALLBACK_EXPENSE_CODE)
             confidence = 0.2
             notes.append(
