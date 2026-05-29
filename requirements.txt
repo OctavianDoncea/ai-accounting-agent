@@ -18,3 +18,4 @@ pypdf
 Pillow
 python-dateutil
 pytest
+pytest-cov
