@@ -2,7 +2,7 @@ import logging
 from datetime import date
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from app.models.journal_entry import JournalEntry, JournalEntryStatus, JournalEntryLines
+from app.models.journal_entry import JournalEntry, JournalEntryStatus, JournalEntryLines, JournalEntryType
 from app.models.chart_of_accounts import ChartOfAccount
 from app.models.invoice import Invoice
 from app.schemas.journal_entry import ClassificationResult
@@ -12,6 +12,7 @@ log = logging.getLogger(__name__)
 ACCOUNTS_PAYABLE_CODE = '2000'
 FALLBACK_EXPENSE_CODE = '7900'
 FALLBACK_TAX_CODE = '6920'
+DEFAULT_BANK_ACCOUNT_CODE = '1010'
 
 def _account_map(db: Session) -> dict[str, ChartOfAccount]:
     return {a.account_code: a for a in db.query(ChartOfAccount).all()}
@@ -30,7 +31,8 @@ def build_journal_entry(db: Session, invoice: Invoice, classification: Classific
         invoice_id=invoice.id,
         entry_date=invoice.invoice_date or date.today(),
         description = _description(invoice),
-        status = JournalEntryStatus.DRAFT
+        status = JournalEntryStatus.DRAFT,
+        entry_type=JournalEntryType.BILL
     )
 
     total_debit = Decimal('0')
@@ -105,3 +107,42 @@ def _description(invoice: Invoice) -> str:
         parts.append(f'Invoice #{invoice.invoice_number}')
 
     return ' '.join(parts) if parts else f'Invoice {invoice.id}'
+
+def build_payment_entry(db: Session, invoice: Invoice, bill_entry: JournalEntry, payment_date: date, bank_account_code: str = DEFAULT_BANK_ACCOUNT_CODE) -> tuple[JournalEntry, list[str]]:
+    """Construct the payment entry that clears a bill once the bank reconciliation agent confirms it was paid."""
+    accounts = _account_map(db)
+    notes: list[str] = []
+
+    ap_account = accounts.get(ACCOUNTS_PAYABLE_CODE)
+    if ap_account is None:
+        raise ValueError(f'Accounts Payable account ({ACCOUNTS_PAYABLE_CODE}) missing from chart of accounts')
+
+    bank_account = accounts.get(bank_account_code)
+    if bank_account is None:
+        bank_account = accounts.get(DEFAULT_BANK_ACCOUNT_CODE)
+        notes.append(f'Requested bank account {bank_account_code} not found; user default.')
+
+    amount = bill_entry.total_credit
+
+    entry = JournalEntry(
+        invoice_id = invoice.id,
+        entry_date = payment_date,
+        description = f'Payment: {_description(invoice)}',
+        status = JournalEntryStatus.DRAFT,
+        entry_type = JournalEntryType.PAYMENT
+    )
+    entry.lines.append(JournalEntryLines(
+        account_id = ap_account.id,
+        debit_amount = amount,
+        credit_amount = Decimal('0'),
+        description = f'Clear payable to {invoice.vendor_name or "vendor"}'
+    ))
+    entry.lines.append(JournalEntryLines(
+        account_id = bank_account.id,
+        debit_amount = Decimal('0'),
+        credit_amount = amount,
+        description = 'Cash paid from bank'
+    ))
+    entry.total_debit = amount
+    entry.total_credit = amount
+    return entry, notes
