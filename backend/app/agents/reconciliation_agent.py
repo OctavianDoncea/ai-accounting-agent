@@ -28,6 +28,7 @@ class JournalEntryCandidate:
     amount: Decimal
     entry_date: date | None
     vendor_name: str
+    invoice_id: object = None
     matched: bool = False
 
 @dataclass
