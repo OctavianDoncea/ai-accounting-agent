@@ -6,7 +6,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.chart_of_accounts import ChartOfAccount
-from app.models.journal_entry import JournalEntry
+from app.models.journal_entry import JournalEntry, JournalEntryType
 from app.schemas.journal_entry import JournalEntryLineOut, JournalEntryOut
 
 router = APIRouter(prefix='/journal-entries', tags=['journal-entries'])
@@ -33,6 +33,7 @@ def _serialize(db: Session, entry: JournalEntry) -> JournalEntryOut:
         entry_date=entry.entry_date,
         description=entry.description,
         status=entry.status,
+        entry_type=entry.entry_type,
         total_debit=entry.total_debit,
         total_credit=entry.total_credit,
         created_at=entry.created_at,
@@ -40,11 +41,14 @@ def _serialize(db: Session, entry: JournalEntry) -> JournalEntryOut:
     )
 
 @router.get('', response_model=list[JournalEntryOut])
-def list_journal_entries(limit: int = 100, db: Session = Depends(get_db)) -> list[JournalEntryOut]:
-    entries = db.query(JournalEntry).order_by(JournalEntry.created_at.desc()).limit(limit).all()
+def list_journal_entries(limit: int = 100, entry_type: JournalEntryType | None = None, db: Session = Depends(get_db)) -> list[JournalEntryOut]:
+    query = db.query(JournalEntry)
+    if entry_type is not None:
+        query = query.filter(JournalEntry.entry_type == entry_type)
+    entries = query.order_by(JournalEntry.created_at.desc()).limit(limit).all()
     return [_serialize(db, e) for e in entries]
 
-@router.get('/export', response_class=Response)
+@router.get('/export')
 def export_journal_entries(db: Session = Depends(get_db)) -> Response:
     """Export all journal entries as CSV (one row per debit/credit line)."""
     entries = db.query(JournalEntry).order_by(JournalEntry.entry_date.desc()).all()
