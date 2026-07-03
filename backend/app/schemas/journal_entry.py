@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from pydantic import BaseModel, Field, ConfigDict
-from app.models.journal_entry import JournalEntryStatus
+from app.models.journal_entry import JournalEntryStatus, JournalEntryType
 
 # Classification agent output (LLM judgement only, no arithmetic)
 class LineClassification(BaseModel):
@@ -51,6 +51,7 @@ class JournalEntryOut(BaseModel):
     entry_date: date
     description: str
     status: JournalEntryStatus
+    entry_type: JournalEntryType = JournalEntryType.BILL
     total_debit: Decimal
     total_credit: Decimal
     created_at: datetime
