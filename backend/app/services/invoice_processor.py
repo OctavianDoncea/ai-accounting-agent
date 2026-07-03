@@ -8,7 +8,7 @@ from app.database import SessionLocal
 from app.models.agent_log import AgentLogStatus
 from app.models.chart_of_accounts import ChartOfAccount, AccountType
 from app.models.invoice import Invoice, InvoiceLineItems, InvoiceStatus
-from app.models.journal_entry import JournalEntry, JournalEntryStatus
+from app.models.journal_entry import JournalEntry, JournalEntryStatus, JournalEntryType
 from app.services import ocr
 from app.services.agent_logger import time_step, write_log
 from app.services.duplicate_detection import find_duplicate
@@ -155,7 +155,9 @@ def _classifiable_accounts(db: Session) -> list[ChartOfAccount]:
     ]
 
 def _classify_and_post(db: Session, invoice: Invoice) -> None:
-    existing = db.query(JournalEntry).filter(JournalEntry.invoice_id == invoice.id).all()
+    """Classify line items, build a balanced journal entry, validate, and post or flag."""
+    existing = db.query(JournalEntry).filter(JournalEntry.invoice_id == invoice.id, JournalEntry.entry_type == JournalEntryType.BILL).all()
+    
     for je in existing:
         db.delete(je)
     if existing:
@@ -195,7 +197,7 @@ def _classify_and_post(db: Session, invoice: Invoice) -> None:
                 'total_credit': float(entry.total_credit),
                 'line_count': len(entry.lines),
             }
-            ctx['reasoning'] = '; '.join(notes) if notes else 'Built balanced double-entry from classified line items.'
+            ctx['reasoning'] = '; '.join(notes) if notes else 'Built balanced entry'
             if notes:
                 ctx['status'] = AgentLogStatus.FLAGGED
     except Exception as e:
