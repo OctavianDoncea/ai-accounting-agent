@@ -13,6 +13,11 @@ class JournalEntryStatus(str, enum.Enum):
     REVERSED = 'REVERSED'
 
 
+class JournalEntryType(str, enum.Enum):
+    BILL = 'BILL'
+    PAYMENT = 'PAYMENT'
+
+
 class JournalEntry(Base):
     __tablename__ = 'journal_entries'
 
@@ -21,6 +26,7 @@ class JournalEntry(Base):
     entry_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     status: Mapped[JournalEntryStatus] = mapped_column(Enum(JournalEntryStatus, name='journal_entry_status'), default=JournalEntryStatus.DRAFT, nullable=False, index=True)
+    entry_type: Mapped[JournalEntryType] = mapped_column(Enum(JournalEntryType, name='journal_entry_type'), default=JournalEntryType.BILL, nullable=False, index=True)
     total_debit: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False, default=Decimal('0'))
     total_credit: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False, default=Decimal('0'))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
