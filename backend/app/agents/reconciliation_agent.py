@@ -1,5 +1,6 @@
 import logging
 import re
+import uuid
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
@@ -24,11 +25,11 @@ NOISE_TOKENS = {
 
 @dataclass
 class JournalEntryCandidate:
-    je_id: object
+    je_id: uuid.UUID
     amount: Decimal
     entry_date: date | None
     vendor_name: str
-    invoice_id: object = None
+    invoice_id: uuid.UUID | None = None
     matched: bool = False
 
 @dataclass

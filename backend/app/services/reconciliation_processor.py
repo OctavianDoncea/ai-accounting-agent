@@ -39,14 +39,14 @@ def run_reconciliation(db: Session, filename: str, content: bytes) -> Reconcilia
     candidates = _load_candidates(db)
     outcome = reconcile(transactions, candidates)
 
-    payments_recorded = 0
-    payments_skipped_existing = 0
+    payment_recorded = 0
+    payment_skipped_existing = 0
     for txn, candidate, confidence, reasoning in outcome.matched:
         result = _record_payment(db, candidate, txn.transaction_date)
         if result == 'recorded':
-            payments_recorded += 1
+            payment_recorded += 1
         elif result == 'already_recorded':
-            payments_skipped_existing += 1
+            payment_skipped_existing += 1
 
     matched_amount = sum((t.amount for t, *_ in outcome.matched), Decimal('0'))
     run.matched_count = len(outcome.matched)
@@ -54,8 +54,8 @@ def run_reconciliation(db: Session, filename: str, content: bytes) -> Reconcilia
     run.unmatched_journal_count = len(outcome.unmatched_candidates)
     run.total_matched_amount = matched_amount
     run.summary = (
-        f'{len(outcome.matched)} matched ({payments_recorded} new payment entr(y/ies) recorded)'
-        + (f', {payments_skipped_existing} already recorded' if payments_skipped_existing else '')
+        f'{len(outcome.matched)} matched ({payment_recorded} new payment entr(y/ies) recorded)'
+        + (f', {payment_skipped_existing} already recorded' if payment_skipped_existing else '')
         + f'), {len(outcome.unmatched_transactions)} unmatched payment(s), '
         f'{len(outcome.unmatched_candidates)} posted entr(y/ies) without a matching payment.'
     )
@@ -75,8 +75,8 @@ def run_reconciliation(db: Session, filename: str, content: bytes) -> Reconcilia
             'unmatched_bank': run.unmatched_bank_count,
             'unmatched_journal': run.unmatched_journal_count,
             'total_matched_amount': float(run.total_matched_amount),
-            'payments_recorded': payments_recorded,
-            'payments_already_recorded': payments_skipped_existing,
+            'payments_recorded': payment_recorded,
+            'payments_already_recorded': payment_skipped_existing,
         },
         reasoning=run.summary,
     )
