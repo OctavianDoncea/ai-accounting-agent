@@ -2,21 +2,12 @@ import os
 import pandas as pd
 import requests
 import streamlit as st
+from ui_helpers import INVOICE_STATUS_BADGE, JE_STATUS_BADGE, format_money, format_date
 
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://backend:8000')
 
 st.set_page_config(page_title='Invoices', layout='wide')
 st.title('Invoices')
-
-STATUS_BADGE = {
-    'PENDING': 'Pending',
-    'EXTRACTED': 'Extracted',
-    'CLASSIFIED': 'Classified',
-    'POSTED': 'Posted',
-    'DUPLICATE': 'Duplicate',
-    'NEEDS_REVIEW': 'Needs review',
-    'FAILED': 'Failed',
-}
 
 @st.cache_data(ttl=3)
 def fetch_invoices():
@@ -29,14 +20,16 @@ def fetch_logs(invoice_id):
     return requests.get(f'{BACKEND_URL}/invoices/{invoice_id}/logs', timeout=10).json()
 
 def fetch_journal_entry(invoice_id):
-    r = requests.get(f'{BACKEND_URL}/invoices/{invoice_id}/journal_entry', timeout=10)
-    if r.status_code == 404:
-        return None
-    r.raise_for_status()
-    return r.json()
+    r = requests.get(f'{BACKEND_URL}/invoices/{invoice_id}/journal-entry', timeout=10)
+    return None if r.status_code == 404 else r.json()
 
-col_refresh, _ = st.columns([1, 5])
-if col_refresh.button('Refresh'):
+def fetch_payment_entry(invoice_id):
+    r = requests.get(f'{BACKEND_URL}/invoices/{invoice_id}/payment-entry', timeout=10)
+    return None if r.status_code == 404 else r.json()
+
+# Top bar
+top = st.columns([1, 4])
+if top[0].button('Refresh'):
     st.cache_data.clear()
 
 try:
@@ -49,26 +42,47 @@ if not invoices:
     st.info('No invoices yet. Upload one on the Upload Invoice page.')
     st.stop()
 
+# Status filter
+all_statuses = sorted({inv['status'] for inv in invoices})
+selected_statuses = top[1].multiselect('Filter by status', all_statuses, default=all_statuses, label_visibility='collapsed')
+filtered = [inv for inv in invoices if inv['status'] in selected_statuses]
+
+# Status-count strip
+status_counts = {s: sum(1 for inv in invoices if inv['status'] == s) for s in all_statuses}
+strip = st.columns(min(len(status_counts), 7) or 1)
+for i, (s, n) in enumerate(status_counts.items()):
+    strip[i % len(strip)].metric(INVOICE_STATUS_BADGE.get(s, s), n)
+
+st.divider()
+
 # Summary table
-df = pd.DataFrame(invoices)
-df['status'] = df['status'].map(lambda s: STATUS_BADGE.get(s, s))
-view = df[['filename', 'vendor_name', 'invoice_date', 'total', 'currency', 'status']].copy()
-view.columns = ['File', 'Vendor', 'Date', 'Total', 'Currency', 'Status']
-st.dataframe(view, width='stretch', hide_index=True)
+df = pd.DataFrame([
+    {
+        'File': inv['filename'],
+        'Vendor': inv['vendor_name'] or '-',
+        'Date': format_date(inv['invoice_date']),
+        'Total': format_money(inv['total'], inv['currency']) if inv['total'] else '-',
+        'Status': INVOICE_STATUS_BADGE.get(inv['status'], inv['status'])
+    } for inv in filtered
+])
+st.dataframe(df, width='stretch', hide_index=True)
+
+if not filtered:
+    st.stop()
 
 st.divider()
 
 # Detail view
-options = {f"{inv['filename']} - {inv.get('vendor_name') or 'Unknown'}": inv['id'] for inv in invoices}
-choice = st.selectbox('Inspect an invoice', list(options.keys()))
-invoice_id = options[choice]
-
+st.subheader('Inspect an invoice')
+options = {f"{inv['filename']} {inv.get('vendor_name') or 'unknown'} ({inv['status']})": inv['id'] for inv in filtered}
+choices = st.selectbox('Pick one', list(options.keys()), label_visibility='collapsed')
+invoice_id = options[choices]
 detail = fetch_details(invoice_id)
 
 c = st.columns(4)
-c[0].metric('Status', detail['status'])
+c[0].metric('Status', INVOICE_STATUS_BADGE.get(detail['status'], detail['status']))
 c[1].metric('Vendor', detail.get('vendor_name') or 'Unknown')
-c[2].metric('Total', f"{detail.get('currency', '')} {detail.get('total')}" if detail.get('total') else 'Unknown')
+c[2].metric('Total', format_money(detail.get('total'), detail.get('currency')))
 c[3].metric('Invoice #', detail.get('invoice_number') or 'Unknown')
 
 if detail.get('error_message'):
@@ -78,45 +92,64 @@ items = detail.get('line_items') or []
 if items:
     st.write('**Line items**')
     st.dataframe(
-        [{'Description': it['description'], 'Qty': it['quantity'], 'Unit price': it['unit_price'], 'Amount': it['amount']} for it in items],
-        width='stretch',
-        hide_index=True,
+        [{'Description': it['description'], 'Qty': it['quantity'], 'Unit price': format_money(it['unit_price']), 'Amount': format_money(it['amount'])} for it in items],
+        width='stretch', hide_index=True
     )
 
-# Reprocess button
-if st.button('Reprocess this invoice'):
+# Action buttons
+act = st.columns(3)
+if act[0].button('Reprocess (full pipeline)'):
     try:
         requests.post(f'{BACKEND_URL}/invoices/{invoice_id}/reprocess', timeout=10)
         st.cache_data.clear()
-        st.success('Reprocessing started - refresh in a few seconds.')
+        st.success('Reprocessing started. Refresh in a few seconds.')
     except Exception as e:
-        st.error(f'Failed to reprocess: {e}')
+        st.error(f'Request failed: {e}')
+if act[1].button('Re-classify only'):
+    try:
+        requests.post(f'{BACKEND_URL}/invoices/{invoice_id}/reclassify', timeout=10)
+        st.cache_data.clear()
+        st.success('Re-classification started. Refresh in a few seconds.')
+    except Exception as e:
+        st.error(f'Re-classify failed: {e}')
 
 # Journal entry
-st.subheader('Journal Entry')
+st.subheader('Journal entry')
 je = fetch_journal_entry(invoice_id)
 if je is None:
-    st.caption('No journal entry yet. it is created once the invoice is classified.')
+    st.caption('No journal entry yet; created once the invoice is classified.')
 else:
     balanced = abs(float(je['total_debit']) - float(je['total_credit'])) <= 0.01
     je_cols = st.columns(3)
-    je_cols[0].metric('Entry status', je['status'])
-    je_cols[1].metric('Total debit', f"{float(je['total_debit']):,.2f}")
-    je_cols[2].metric('Total credit', f"{float(je['total_credit']):,.2f}")
-    st.write('Balanced' if balanced else 'Not balanced')
+    je_cols[0].metric('Entry status', JE_STATUS_BADGE.get(je['status'], je['status']))
+    je_cols[1].metric('Total debit', format_money(je['total_debit']))
+    je_cols[2].metric('Total credit', format_money(je['total_credit']))
+    st.caption('Balanced' if balanced else 'Not balanced')
 
     rows = []
     for ln in je['lines']:
         debit = float(ln['debit_amount'])
         credit = float(ln['credit_amount'])
         rows.append({
-            'Account': f"{ln['account_code']} - {ln['account_name']}",
-            'Debit': f"{debit:,.2f}" if debit > 0 else '',
-            'Credit': f"{credit:,.2f}" if credit > 0 else '',
+            'Account': f"{ln['account_code']} {ln['account_name']}",
+            'Debit': format_money(debit) if debit > 0 else '',
+            'Credit': format_money(credit) if credit > 0 else '',
             'Memo': ln.get('description') or '',
-            'Confidence': f"{ln['confidence_score']:.2f}" if ln.get('confidence_score') is not None else '',
+            'Confidence': f"{ln['confidence_score']:.2f}" if ln.get('confidence_score') is not None else ''
         })
     st.dataframe(rows, width='stretch', hide_index=True)
+
+# Payment status
+st.subheader('Payment')
+payment = fetch_payment_entry(invoice_id)
+if payment is None:
+    st.caption('Not yet matched to a bank payment. Run reconciliation once the statement is available.')
+else:
+    pay_cols = st.columns(3)
+    pay_cols[0].metric('Payment status', JE_STATUS_BADGE.get(payment['status'], payment['status']))
+    pay_cols[1].metric('Amount cleared', format_money(payment['total_credit']))
+    pay_cols[2].metric('Payment date', format_date(payment['entry_date']))
+    st.success('Accounts Payable cleared. This invoice has been paid and reconciled against the bank statement.')
 
 # Audit trail
 st.subheader('Agent audit trail')
