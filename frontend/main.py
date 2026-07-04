@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import requests
 import streamlit as st
-from ui_helpers import format_money, format_date
+from ui_helpers import format_money, format_date, INVOICE_STATUS_BADGE
 
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://backend:8000')
 
@@ -73,11 +73,12 @@ with left:
                 "File": inv["filename"],
                 "Vendor": inv["vendor_name"] or "-",
                 "Total": format_money(inv["total"], inv["currency"]) if inv["total"] else "-",
+                'Status': INVOICE_STATUS_BADGE.get(inv["status"], inv["status"])
             }
             for inv in summary["recent_invoices"]
         ])
         st.dataframe(df, width='stretch', hide_index=True)
-    st.page_link("pages/2_Invoices.py", label="View all invoices →")
+    st.page_link("pages/2_Invoices.py", label="View all invoices ->")
 
 with right:
     st.subheader("Recent reconciliations")
@@ -102,12 +103,14 @@ st.divider()
 
 # Quick actions
 st.subheader("Quick actions")
-qa = st.columns(4)
+qa = st.columns(5)
 with qa[0]:
     st.page_link("pages/1_Upload_Invoice.py", label="⬆Upload an invoice")
 with qa[1]:
     st.page_link("pages/4_Reconciliation.py", label="Reconcile statement")
 with qa[2]:
-    st.page_link("pages/6_Reports.py", label="View reports")
+    st.page_link("pages/7_Review.py", label="Review flagged invoices")
 with qa[3]:
-    st.page_link("pages/5_Chart_of_Accounts.py", label="Chart of accounts")
+    st.page_link("pages/6_Reports.py", label="View reports")
+with qa[4]:
+    st.page_link('pages/5_Chart_of_Accounts.py', label='Chart of accounts')
