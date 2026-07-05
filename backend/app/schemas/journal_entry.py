@@ -29,6 +29,10 @@ class ValidationResult(BaseModel):
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
+    @property
+    def is_balanced(self) -> bool:
+        return not any('does not balance' in error for error in self.errors)
+
 # API response models
 class JournalEntryLineOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)

@@ -55,7 +55,7 @@ class TestSubmitReview:
 
     def test_review_with_tax_account(self, db):
         from decimal import Decimal
-        inv = make_extracted_invoice(db, total=Decimal('100.00'), tax=Decimal('8.00'), line_items=[('Widget', Decimal('100.00'))])
+        inv = make_extracted_invoice(db, total=Decimal('100.00'), tax=Decimal('8.00'), line_items=[('Widget', Decimal('92.00'))])
         inv.status = InvoiceStatus.NEEDS_REVIEW
         db.commit()
 

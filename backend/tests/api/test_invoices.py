@@ -52,4 +52,4 @@ class TestListAndDetail:
     def test_journal_entry_endpoint_returns_404_when_no_je(self, client):
         r, _ = _patched_upload(client)
         iid = r.json()['invoice_id']
-        assert client.get(f'/invoices/{iid}/journal_entry').status_code == 404
+        assert client.get(f'/invoices/{iid}/journal-entry').status_code == 404

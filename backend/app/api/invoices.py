@@ -85,7 +85,7 @@ def reprocess_invoice(invoice_id: uuid.UUID, background_tasks: BackgroundTasks, 
     background_tasks.add_task(process_invoice, invoice_id)
     return (UploadResponse(invoice_id=invoice_id, status=InvoiceStatus.PENDING, message='Reprocessing started.'))
 
-@router.get('/{invoice_id}/journal_entry', response_model=JournalEntryOut)
+@router.get('/{invoice_id}/journal-entry', response_model=JournalEntryOut)
 def get_invoice_journal_entry(invoice_id: uuid.UUID, db: Session = Depends(get_db)) -> JournalEntryOut:
     invoice = db.get(Invoice, invoice_id)
     if invoice is None:
