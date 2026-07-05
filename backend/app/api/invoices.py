@@ -96,7 +96,7 @@ def get_invoice_journal_entry(invoice_id: uuid.UUID, db: Session = Depends(get_d
     return serialize_journal_entry(db, entry)
 
 @router.get('/{invoice_id}/payment-entry', response_model=JournalEntryOut)
-def get_invoice_payment_entry(invoice_id: uuid.UUId, db: Session = Depends(get_db)) -> JournalEntryOut:
+def get_invoice_payment_entry(invoice_id: uuid.UUID, db: Session = Depends(get_db)) -> JournalEntryOut:
     invoice = db.get(Invoice, invoice_id)
     if invoice is None:
         raise HTTPException(status_code=404, detail='Invoice not found.')
@@ -136,7 +136,7 @@ def get_review_detail(invoice_id: uuid.UUID, db: Session = Depends(get_db)) -> R
             if acct is None:
                 continue
             if idx < n_items:
-                current_codes[idx] = acct.account_code
+                current_codes[invoice.line_items[idx].id] = acct.account_code
             else:
                 current_tax_codes = acct.account_code
         validation_errors = validate_entry(db, draft_entry).errors
@@ -146,13 +146,13 @@ def get_review_detail(invoice_id: uuid.UUID, db: Session = Depends(get_db)) -> R
     ) for a in _classifiable_accounts(db)]
 
     line_items = [ReviewLineItemOut(
-        line_index = idx,
+        line_id = li.id,
         description = li.description,
         quantity = float(li.quantity) if li.quantity is not None else None,
         unit_price = float(li.unit_price) if li.unit_price is not None else None,
         amount = float(li.amount),
-        current_account_code = current_codes.get(idx)
-    ) for idx, li in enumerate(invoice.line_items)]
+        current_account_code = current_codes.get(li.id)
+    ) for li in invoice.line_items]
 
     return ReviewDetailOut(
         invoice_id = str(invoice_id),

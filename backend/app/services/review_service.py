@@ -31,9 +31,14 @@ def submit_review(db: Session, invoice_id, overrides: list[LineOverride], tax_ac
     if existing:
         db.commit()
 
+    line_index_by_id = {li.id: i for i, li in enumerate(invoice.line_items)}
+    for o in overrides:
+        if o.line_id not in line_index_by_id:
+            raise ReviewError(f'Line item {o.line_id} not found on this invoice.')
+
     classification = ClassificationResult(
         classification = [
-            LineClassification(line_index=o.line_id, account_code=o.account_code, confidence=1.0, reasoning='Manually approved by reviewer.')
+            LineClassification(line_index=line_index_by_id[o.line_id], account_code=o.account_code, confidence=1.0, reasoning='Manually approved by reviewer.')
             for o in overrides
         ],
         tax_account_code = tax_account_code,
