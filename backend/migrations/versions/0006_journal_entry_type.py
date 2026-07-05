@@ -1,6 +1,7 @@
 """journal entry type (bill vs payment)
-Revision ID: 0003_journal_entry_type
-Revises: d4e5f6a7b8c9_add_reconciliation_tables.py
+
+Revision ID: 0006_journal_entry_type
+Revises: d4e5f6a7b8c9
 Create Date: 2026-07-03 11:05:00.000000
 """
 
@@ -9,8 +10,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-revision: str = '0003_journal_entry_type'
-down_revision: Union[str, None] = 'd4e5f6a7b8c9_add_reconciliation_tables.py'
+revision: str = '0006_journal_entry_type'
+down_revision: Union[str, None] = 'd4e5f6a7b8c9'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
