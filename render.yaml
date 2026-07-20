@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: ai-accounting-agent-api
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: |
+      pip install -r ../requirements.txt &&
+      alembic upgrade head &&
+      python -m app.seed.run_seed
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false  # set manually in dashboard
+      - key: LLM_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false  # set manually in dashboard
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: UPLOAD_DIR
+        value: /tmp/uploads
+      - key: PYTHON_VERSION
+        value: "3.11"

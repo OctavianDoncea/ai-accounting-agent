@@ -1,7 +1,12 @@
 import logging
 from app.models.chart_of_accounts import ChartOfAccount
 from app.schemas.journal_entry import ClassificationResult, LineClassification
-from app.services.ollama_client import OllamaClient, OllamaError
+from app.services.llm_factory import create_llm_client
+from app.services.ollama_client import OllamaError
+try:
+    from app.services.groq_client import GroqError
+except ImportError:
+    GroqError = OllamaError
 
 log = logging.getLogger(__name__)
 
@@ -46,8 +51,8 @@ def _format_line_items(line_items) -> str:
     return '\n'.join(lines) if lines else ' (no line items extracted)'
 
 class ClassificationAgent:
-    def __init__(self, client: OllamaClient | None = None):
-        self.client = client or OllamaClient()
+    def __init__(self, client=None):
+        self.client = client or create_llm_client()
 
     def classify(self, invoice, accounts: list[ChartOfAccount]) -> ClassificationResult:
         """Classify an invoice's line items against the chart of accounts"""
@@ -65,7 +70,7 @@ class ClassificationAgent:
             try:
                 raw = self.client.chat_json(SYSTEM_PROMPT, user_prompt)
                 return self._normalize(raw)
-            except (OllamaError, ValueError) as e:
+            except (OllamaError, GroqError, ValueError) as e:
                 last_error = e
                 log.warning(f'Classification attempt {attempt} failed: {e}')
         raise OllamaError(f'Classification failed after retries: {last_error}')

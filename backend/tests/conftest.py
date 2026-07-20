@@ -58,8 +58,8 @@ def mock_ocr():
 
 @pytest.fixture
 def mock_llm():
-    with patch('app.agents.extraction_agent.OllamaClient') as me, \
-        patch('app.agents.classification_agent.OllamaClient') as mc:
+    with patch('app.agents.extraction_agent.create_llm_client') as me, \
+        patch('app.agents.classification_agent.create_llm_client') as mc:
         e_inst = MagicMock()
         c_inst = MagicMock()
         me.return_value = e_inst

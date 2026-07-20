@@ -3,7 +3,12 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from dateutil import parser as date_parser
 from app.schemas.invoice import ExtractedInvoice, ExtractedLineItem
-from app.services.ollama_client import OllamaClient, OllamaError
+from app.services.llm_factory import create_llm_client
+from app.services.ollama_client import OllamaError
+try:
+    from app.services.groq_client import GroqError
+except ImportError:
+    GroqError = OllamaError
 
 log = logging.getLogger(__name__)
 
@@ -49,8 +54,8 @@ USER_PROMPT_TEMPLATE = """Extract the invoice fields from the following text:
 Return only the JSON object."""
 
 class ExtractionAgent:
-    def __init__(self, client: OllamaClient | None = None):
-        self.client = client or OllamaClient()
+    def __init__(self, client=None):
+        self.client = client or create_llm_client()
 
     def extract(self, invoice_text: str) -> ExtractedInvoice:
         """Run extraction with one retry on validation failure"""
@@ -59,7 +64,7 @@ class ExtractionAgent:
             try:
                 raw = self.client.chat_json(SYSTEM_PROMPT, USER_PROMPT_TEMPLATE.format(invoice_text=invoice_text[:8000]))
                 return self._normalize(raw)
-            except (OllamaError, ValueError) as e:
+            except (OllamaError, GroqError, ValueError) as e:
                 last_error = e
                 log.warning(f'Extraction attempt {attempt} failed: {e}')
         raise OllamaError(f'Extraction failed after retries: {last_error}')
