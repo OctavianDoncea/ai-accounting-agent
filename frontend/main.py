@@ -14,19 +14,21 @@ st.caption('Automated invoice ingestion, classification, and reconciliation, pow
 
 # System status
 try:
-    health = requests.get(f'{BACKEND_URL}/health', timeout=3).json()
+    with st.spinner('Connecting to backend (may take up to a minute if it was sleeping)…'):
+        health = requests.get(f'{BACKEND_URL}/health', timeout=90).json()
     db_ok = health['database']['ok']
     ollama_ok = health['ollama']['ok']
 except Exception as e:
     st.error(f'Backend unreachable at `{BACKEND_URL}`: {e}')
-    st.stop()
+    st.info('On the free Render tier the API sleeps after ~15 minutes idle. Open the backend URL once to wake it, then refresh this page.')
+    st.stop()  
 
 status_cols = st.columns([1, 1, 6])
 status_cols[0].markdown(f"**Database**  \n{'Online' if db_ok else 'Offline'}")
-status_cols[1].markdown(f"**Ollama**  \n{'Online' if ollama_ok else 'Offline'}")
+status_cols[1].markdown(f"**LLM**  \n{'Online' if ollama_ok else 'Offline'}")
 
 if not ollama_ok:
-    status_cols[2].caption("Ollama isn't reachable. Invoice processing will fail until it's running.")
+    status_cols[2].caption("LLM isn't reachable. Invoice processing will fail until it's running.")
 
 st.divider()
 
