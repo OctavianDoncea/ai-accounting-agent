@@ -92,7 +92,7 @@ class TestHeicSupport:
         assert '.heif' in IMAGE_EXTENSIONS
 
 
-class TestExistingBehaviorUnchanges:
+class TestExistingBehaviorUnchanged:
     @pytest.mark.parametrize('filename,expected_keywords', [
         ('invoice_cloudhost.pdf', ['CloudHost', '414.60', 'CH-2026-00871']),
         ('invoice_officedepot.pdf', ['Office Depot', '508.77']),

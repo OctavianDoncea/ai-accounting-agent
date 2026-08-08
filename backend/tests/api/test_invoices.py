@@ -15,7 +15,7 @@ class TestUpload:
         assert r.status_code == 400
         assert 'Unsupported' in r.json()['detail']
 
-    def accepts_heic_extension(self, client):
+    def test_accepts_heic_extension(self, client):
         with patch('app.api.invoices.process_invoice'):
             r = client.post('/invoices/upload', files={'file': ('IMG_1234.heic', b'fake', 'image/heic')})
         assert r.status_code == 201
@@ -24,7 +24,7 @@ class TestUpload:
         r = client.post('/invoices/upload', files={'file': ('empty.pdf', b'', 'application/pdf')})
         assert r.status_code == 400
 
-    def test_accepts_psf_and_returns_pending(self, client):
+    def test_accepts_pdf_and_returns_pending(self, client):
         r, _ = _patched_upload(client)
         assert r.status_code == 201
         body = r.json()
@@ -32,7 +32,8 @@ class TestUpload:
         assert 'invoice_id' in body
 
     def test_schedules_background_processing(self, client):
-        r, mock_process = _patched_upload(client, '/home/claude/ai-accounting-agent/samples/invoice_cloudhost.pdf')
+        r, mock_process = _patched_upload(client)
+        assert r.status_code == 201
         assert mock_process.called
 
 

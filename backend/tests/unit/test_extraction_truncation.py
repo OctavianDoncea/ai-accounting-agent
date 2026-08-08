@@ -17,7 +17,7 @@ class TestTruncatePreservingTotals:
 
         result = _truncate_preserving_totals(text)
         assert 'MegaCorp' in result
-        assert 'TOTAL: $1080.00' in result
+        assert 'Total: $1080.00' in result
         assert len(result) <= len(text)
 
     def test_old_native_truncation_would_have_lost_totals(self):

@@ -21,7 +21,18 @@ from app.models.journal_entry import JournalEntry, JournalEntryStatus
 # Database
 TABLES_TO_TRUNCATE = ('bank_transactions', 'reconciliation_runs', 'journal_entry_lines', 'journal_entries', 'agent_logs', 'invoice_line_items', 'invoices')
 
-SAMPLE_PDF = '/samples/invoice_cloudhost.pdf'
+def _resolve_sample_pdf() -> str:
+    """Prefer CI-copied /samples path; fall back to repo samples/ for local runs."""
+    candidates = [
+        '/samples/invoice_cloudhost.pdf',
+        os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'samples', 'invoice_cloudhost.pdf')),
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return candidates[0]
+
+SAMPLE_PDF = _resolve_sample_pdf()
 SAMPLE_OCR_TEXT = (
     'CloudHost Solutions Inc. Invoice CH-2026-00871 '
     'Cloud hosting Object storage Managed DB subtotal tax total 414.60'
