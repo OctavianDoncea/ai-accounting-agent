@@ -2,7 +2,7 @@ import os
 import time
 import requests
 import streamlit as st
-from frontend.ui_helpers import INVOICE_STATUS_BADGE, format_money
+from ui_helpers import INVOICE_STATUS_BADGE, format_money
 
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://backend:8000')
 
@@ -28,9 +28,9 @@ if uploaded is not None and st.button('Process invoice', type='primary'):
     terminal = {'POSTED', 'DUPLICATE', 'NEEDS_REVIEW', 'FAILED'}
     step_labels = {
         'extract_text': '1/5 OCR',
-        'extract_fields': '2/5 Exctarcting fields',
+        'extract_fields': '2/5 Extracting fields',
         'check_duplicate': '3/5 Checking duplicates',
-        'classify_line_items': '4/5 Classifiying accounts',
+        'classify_line_items': '4/5 Classifying accounts',
         'build_entry': '4/5 Building journal entry',
         'validate_entry': '5/5 Validating entry',
         'final_status': 'Done'
@@ -41,7 +41,7 @@ if uploaded is not None and st.button('Process invoice', type='primary'):
     detail = None
     status = 'PENDING'
     last_step = None
-    for i in range (180):
+    for i in range(180):
         time.sleep(1)
         try:
             detail = requests.get(f'{BACKEND_URL}/invoices/{invoice_id}', timeout=10).json()
@@ -52,9 +52,10 @@ if uploaded is not None and st.button('Process invoice', type='primary'):
         if logs:
             last_step = logs[-1]['step_name']
             label = step_labels.get(last_step, last_step)
-            n_done = len([l for l in logs if l['status'] == 'FAILED'])
+            n_done = len([l for l in logs if l['status'] == 'SUCCESS'])
             progress.progress(min(n_done / 7, 1.0), text=label)
-            status_box.caption(f'Latest: {logs[-1]['agent_name']}: {last_step}')
+            agent = logs[-1]['agent_name']
+            status_box.caption(f'Latest: {agent}: {last_step}')
         if status in terminal:
             break
     progress.empty()
@@ -63,7 +64,7 @@ if uploaded is not None and st.button('Process invoice', type='primary'):
     # Final results
     badge = INVOICE_STATUS_BADGE.get(status, status)
     if status == 'POSTED':
-        st.success(f'{badge}: jounral entry created and posted.')
+        st.success(f'{badge}: journal entry created and posted.')
     elif status == 'FAILED':
         st.error(f'{badge}')
         if detail and detail.get('error_message'):
@@ -78,7 +79,7 @@ if uploaded is not None and st.button('Process invoice', type='primary'):
     if detail and status != 'FAILED':
         cols = st.columns(2)
         cols[0].metric('Vendor', detail.get('vendor_name') or '-')
-        cols[1].metric('Total'. format_money(detail.get('total'), detail.get('currency', '')))
+        cols[1].metric('Total', format_money(detail.get('total'), detail.get('currency', '')))
         cols2 = st.columns(2)
         cols2[0].metric('Invoice #', detail.get('invoice_number') or '-')
         cols2[1].metric('Invoice date', detail.get('invoice_date') or '-')
@@ -89,6 +90,6 @@ if uploaded is not None and st.button('Process invoice', type='primary'):
             st.dataframe([
                 {'Description': it['description'], 'Qty': it['quantity'], "Unit price": format_money(it['unit_price']), 'Amount': format_money(it['amount'])}
                 for it in items
-            ], width = 'stretch', hide_index = True)
+            ], width='stretch', hide_index=True)
 
         st.page_link('pages/2_Invoices.py', label='See full details and audit trail')
