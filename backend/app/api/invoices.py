@@ -1,25 +1,25 @@
 import logging
 import os
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, File, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
-from app.database import get_db
 from app.config import settings
+from app.database import get_db
 from app.models.agent_log import AgentLog
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.journal_entry import JournalEntry, JournalEntryType
-from app.schemas.invoice import InvoiceOut, AgentLogOut, InvoiceSummaryOut, UploadResponse
+from app.schemas.invoice import AgentLogOut, InvoiceOut, InvoiceSummaryOut, UploadResponse
 from app.schemas.journal_entry import JournalEntryOut
 from app.schemas.review import ClassifiableAccountOut, ReviewDetailOut, ReviewLineItemOut, ReviewSubmission, ReviewSubmitResponse
 from app.api.journal_entries import _serialize as serialize_journal_entry
 from app.agents.validation_agents import validate_entry
-from app.services.invoice_processor import reclassify_invoice, process_invoice, _classifiable_accounts
+from app.services.invoice_processor import process_invoice, reclassify_invoice, _classifiable_accounts
 from app.services.review_service import ReviewError, submit_review
 
 router = APIRouter(prefix='/invoices', tags=['invoices'])
 log = logging.getLogger(__name__)
 
-ALLOWED_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp', '.webp'}
+ALLOWED_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp', '.webp', '.heic', '.heif'}
 MAX_FILE_BYTES = 20 * 1024 * 1024 # 20 MB
 
 @router.post('/upload', response_model=UploadResponse, status_code=201)

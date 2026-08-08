@@ -1,5 +1,4 @@
 from unittest.mock import patch
-
 from tests.conftest import SAMPLE_PDF
 
 def _patched_upload(client, filepath: str = SAMPLE_PDF, filename: str = 'invoice.pdf'):
@@ -16,6 +15,11 @@ class TestUpload:
         assert r.status_code == 400
         assert 'Unsupported' in r.json()['detail']
 
+    def accepts_heic_extension(self, client):
+        with patch('app.api.invoices.process_invoice'):
+            r = client.post('/invoices/upload', files={'file': ('IMG_1234.heic', b'fake', 'image/heic')})
+        assert r.status_code == 201
+
     def test_rejects_empty_file(self, client):
         r = client.post('/invoices/upload', files={'file': ('empty.pdf', b'', 'application/pdf')})
         assert r.status_code == 400
@@ -28,7 +32,7 @@ class TestUpload:
         assert 'invoice_id' in body
 
     def test_schedules_background_processing(self, client):
-        r, mock_process = _patched_upload(client)
+        r, mock_process = _patched_upload(client, '/home/claude/ai-accounting-agent/samples/invoice_cloudhost.pdf')
         assert mock_process.called
 
 

@@ -19,3 +19,7 @@ Pillow
 python-dateutil
 pytest
 pytest-cov
+pillow-heif
+opencv-python-headless
+libXext
+numpy
