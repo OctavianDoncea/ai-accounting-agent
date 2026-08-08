@@ -19,7 +19,7 @@ except ImportError:
 
 log = logging.getLogger(__name__)
 
-IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif', 'bmp', '.heic', '.heif'}
+IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif', '.bmp', '.heic', '.heif'}
 PDF_EXTENSIONS = {'.pdf'}
 
 MIN_EMBEDDED_TEXT_CHARS = 100
@@ -40,6 +40,8 @@ def extract_text(file_path: str) -> tuple[str, str]:
             raise OCRError("HEIC/HEIF images require the pillow-heif package, which isn't installed. Convert the photo to JPG/PNG first.")
         
         return _extract_from_image(file_path), 'image_ocr'
+
+    raise OCRError(f'Unsupported file type: {ext or "(none)"}')
 
 def _extract_text_from_pdf(file_path: str) -> tuple[str, str]:
     # Embedded text layer first
