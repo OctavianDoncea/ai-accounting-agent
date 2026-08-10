@@ -29,6 +29,7 @@ def build_journal_entry(db: Session, invoice: Invoice, classification: Classific
 
     entry = JournalEntry(
         invoice_id=invoice.id,
+        user_id=invoice.user_id,
         entry_date=invoice.invoice_date or date.today(),
         description = _description(invoice),
         status = JournalEntryStatus.DRAFT,
@@ -126,6 +127,7 @@ def build_payment_entry(db: Session, invoice: Invoice, bill_entry: JournalEntry,
 
     entry = JournalEntry(
         invoice_id = invoice.id,
+        user_id = invoice.user_id,
         entry_date = payment_date,
         description = f'Payment: {_description(invoice)}',
         status = JournalEntryStatus.DRAFT,

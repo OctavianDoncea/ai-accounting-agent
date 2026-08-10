@@ -10,7 +10,8 @@ def find_duplicate(db: Session, invoice: Invoice) -> Invoice | None:
     base_query = db.query(Invoice).filter(
         Invoice.id != invoice.id,
         Invoice.status != InvoiceStatus.DUPLICATE,
-        Invoice.status != InvoiceStatus.FAILED
+        Invoice.status != InvoiceStatus.FAILED,
+        Invoice.user_id == invoice.user_id
     )
 
     if invoice.vendor_name and invoice.invoice_number:

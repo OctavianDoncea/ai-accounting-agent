@@ -1,14 +1,10 @@
 import os
 import tempfile
 import uuid
+import pytest
 from datetime import date
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
-
-# /app/uploads is Docker-only; use a writable dir for pytest (CI and local).
-os.environ.setdefault('UPLOAD_DIR', tempfile.mkdtemp(prefix='test_uploads_'))
-
-import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
@@ -17,9 +13,10 @@ from app.database import SessionLocal
 from app.main import app
 from app.models.invoice import Invoice, InvoiceStatus, InvoiceLineItems
 from app.models.journal_entry import JournalEntry, JournalEntryStatus
+os.environ.setdefault('UPLOAD_DIR', tempfile.mkdtemp(prefix='test_uploads_'))
 
 # Database
-TABLES_TO_TRUNCATE = ('bank_transactions', 'reconciliation_runs', 'journal_entry_lines', 'journal_entries', 'agent_logs', 'invoice_line_items', 'invoices')
+TABLES_TO_TRUNCATE = ('bank_transactions', 'reconciliation_runs', 'journal_entry_lines', 'journal_entries', 'agent_logs', 'invoice_line_items', 'invoices', 'users')
 
 def _resolve_sample_pdf() -> str:
     """Prefer CI-copied /samples path; fall back to repo samples/ for local runs."""

@@ -14,7 +14,7 @@ from app.services.journal_entry_builder import build_payment_entry
 
 log = logging.getLogger(__name__)
 
-def run_reconciliation(db: Session, filename: str, content: bytes) -> ReconciliationRun:
+def run_reconciliation(db: Session, filename: str, content: bytes, user_id=None) -> ReconciliationRun:
     """Parse a bank statement, match against postred journal emtries, persist a report."""
     parsed = parse_bank_statement(content)
 
@@ -67,6 +67,7 @@ def run_reconciliation(db: Session, filename: str, content: bytes) -> Reconcilia
     write_log(
         db,
         invoice_id=None,
+        user_id=user_id,
         agent_name='reconciliation_agent',
         step_name='reconcile_statement',
         status=AgentLogStatus.SUCCESS if run.unmatched_bank_count == 0 else AgentLogStatus.FLAGGED,
@@ -82,11 +83,11 @@ def run_reconciliation(db: Session, filename: str, content: bytes) -> Reconcilia
     )
     return run
 
-def _load_candidates(db: Session) -> list[JournalEntryCandidate]:
+def _load_candidates(db: Session, user_id=None) -> list[JournalEntryCandidate]:
     rows = (
         db.query(JournalEntry, Invoice)
         .outerjoin(Invoice, JournalEntry.invoice_id == Invoice.id)
-        .filter(JournalEntry.status == JournalEntryStatus.POSTED, JournalEntry.entry_type == JournalEntryType.BILL)
+        .filter(JournalEntry.status == JournalEntryStatus.POSTED, JournalEntry.entry_type == JournalEntryType.BILL, JournalEntry.user_id == user_id)
         .all()
     )
     candidates = []
@@ -128,6 +129,7 @@ def _record_payment(db: Session, candidate: JournalEntryCandidate, payment_date)
     write_log(
         db,
         invoice_id = invoice.id,
+        user_id = invoice.user_id,
         agent_name = 'reconciliation_agent',
         step_name = 'record_payment',
         status = AgentLogStatus.SUCCESS if validation.is_valid else AgentLogStatus.FLAGGED,

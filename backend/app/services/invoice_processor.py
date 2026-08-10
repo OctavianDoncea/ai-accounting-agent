@@ -37,7 +37,7 @@ def process_invoice(invoice_id: uuid.UUID) -> None:
 def _run_pipeline(db: Session, invoice: Invoice) -> None:
     # Step 1. OCR
     try:
-        with time_step(db, invoice_id=invoice.id, agent_name='OCR', step_name='extract_text', input_data={'filename': invoice.filename}) as ctx:
+        with time_step(db, invoice_id=invoice.id, user_id=invoice.user_id, agent_name='OCR', step_name='extract_text', input_data={'filename': invoice.filename}) as ctx:
             text, method = ocr.extract_text(invoice.file_path)
             invoice.raw_text = text
             db.add(invoice)
@@ -50,7 +50,7 @@ def _run_pipeline(db: Session, invoice: Invoice) -> None:
 
     # Step 2: Extraction Agent
     try:
-        with time_step(db, invoice_id=invoice.id, agent_name='extraction_agent', step_name='extract_fields', input_data={'char_count': len(invoice.raw_text or '')}) as ctx:
+        with time_step(db, invoice_id=invoice.id, user_id=invoice.user_id, agent_name='extraction_agent', step_name='extract_fields', input_data={'char_count': len(invoice.raw_text or '')}) as ctx:
             agent = ExtractionAgent()
             extracted = agent.extract(invoice.raw_text or '')
 
@@ -89,7 +89,7 @@ def _run_pipeline(db: Session, invoice: Invoice) -> None:
         return
 
     # Step 3: Duplicate detection
-    with time_step(db, invoice_id=invoice.id, agent_name='duplicate_detector', step_name='check_duplicate') as ctx:
+    with time_step(db, invoice_id=invoice.id, user_id=invoice.user_id, agent_name='duplicate_detector', step_name='check_duplicate') as ctx:
         dup = find_duplicate(db, invoice)
         if dup is not None:
             invoice.status = InvoiceStatus.DUPLICATE
@@ -113,7 +113,7 @@ def _run_pipeline(db: Session, invoice: Invoice) -> None:
             if missing_critical
             else f'Low extraction confidence ({extracted.confidence:.2f})'
         )
-        write_log(db, invoice_id=invoice.id, agent_name='pipeline', step_name='final_status', status=AgentLogStatus.FLAGGED, reasoning=reason, confidence_score=extracted.confidence)
+        write_log(db, invoice_id=invoice.id, user_id=invoice.user_id, agent_name='pipeline', step_name='final_status', status=AgentLogStatus.FLAGGED, reasoning=reason, confidence_score=extracted.confidence)
         db.add(invoice)
         db.commit()
         return
@@ -165,7 +165,7 @@ def _classify_and_post(db: Session, invoice: Invoice) -> None:
 
     # Step 4: Classification agent
     try:
-        with time_step(db, invoice_id=invoice.id, agent_name='classification_agent', step_name='classify_line_items', input_data={'line_item_count': len(invoice.line_items)}) as ctx:
+        with time_step(db, invoice_id=invoice.id, user_id=invoice.user_id, agent_name='classification_agent', step_name='classify_line_items', input_data={'line_item_count': len(invoice.line_items)}) as ctx:
             accounts = _classifiable_accounts(db)
             agent = ClassificationAgent()
             result = agent.classify(invoice, accounts)
@@ -185,7 +185,7 @@ def _classify_and_post(db: Session, invoice: Invoice) -> None:
     # Step 5: Build the journal entry (deterministic)
     builder_notes: list[str] = []
     try:
-        with time_step(db, invoice_id=invoice.id, agent_name='journal_entry_builder', step_name='build_entry') as ctx:
+        with time_step(db, invoice_id=invoice.id, user_id=invoice.user_id, agent_name='journal_entry_builder', step_name='build_entry') as ctx:
             entry, notes = build_journal_entry(db, invoice, result)
             builder_notes = notes
             db.add(entry)
@@ -205,7 +205,7 @@ def _classify_and_post(db: Session, invoice: Invoice) -> None:
         return
 
     # Step 6: Validation agent (deterministic)
-    with time_step(db, invoice_id=invoice.id, agent_name='validation_agent', step_name='validate_entry') as ctx:
+    with time_step(db, invoice_id=invoice.id, user_id=invoice.user_id, agent_name='validation_agent', step_name='validate_entry') as ctx:
         validation = validate_entry(db, entry)
         ctx['output_data'] = {
             'is_valid': validation.is_valid,
@@ -244,4 +244,4 @@ def _classify_and_post(db: Session, invoice: Invoice) -> None:
     db.add_all([entry, invoice])
     db.commit()
 
-    write_log(db, invoice_id=invoice.id, agent_name='pipeline', step_name='final_status', status=final_status, reasoning=final_reason, confidence_score=result.min_confidence)
+    write_log(db, invoice_id=invoice.id, user_id=invoice.user_id, agent_name='pipeline', step_name='final_status', status=final_status, reasoning=final_reason, confidence_score=result.min_confidence)

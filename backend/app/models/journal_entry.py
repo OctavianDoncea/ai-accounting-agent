@@ -23,6 +23,7 @@ class JournalEntry(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     invoice_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('invoices.id', ondelete='SET NULL'), nullable=True, index=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=True, index=True)
     entry_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     status: Mapped[JournalEntryStatus] = mapped_column(Enum(JournalEntryStatus, name='journal_entry_status'), default=JournalEntryStatus.DRAFT, nullable=False, index=True)

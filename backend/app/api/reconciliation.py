@@ -13,14 +13,22 @@ from app.models.journal_entry import JournalEntry, JournalEntryStatus
 from app.schemas.reconciliation import BankTransactionOut, ReconciliationSummaryOut, ReconciliationRunOut, UnmatchedJournalEntryOut
 from app.services.bank_statement_parser import BankStatementParseError
 from app.services.reconciliation_processor import run_reconciliation
+from app.security import get_current_user_id
 
 router = APIRouter(prefix='/reconciliation', tags=['reconciliation'])
 log = logging.getLogger(__name__)
 
 MAX_FILE_BYTES = 10 * 1024 * 1024 # 10 MB
 
+def _get_owned_run(db: Session, run_id: uuid.UUID, user_id: uuid.UUID | None = None) -> ReconciliationRun | None:
+    query = db.query(ReconciliationRun).filter(ReconciliationRun.id == run_id)
+    if user_id is not None:
+        query = query.filter(ReconciliationRun.user_id == user_id)
+    
+    return query.first()
+
 @router.post('/upload', response_model=ReconciliationSummaryOut, status_code=201)
-async def upload_statement(file: UploadFile = File(...), db: Session = Depends(get_db)) -> ReconciliationSummaryOut:
+async def upload_statement(file: UploadFile = File(...), db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> ReconciliationSummaryOut:
     ext = os.path.splitext(file.filename or '')[1].lower()
     if ext not in {'.csv', '.txt'}:
         raise HTTPException(status_code=400, detail='Please upload a .csv bank statement.')
@@ -32,20 +40,23 @@ async def upload_statement(file: UploadFile = File(...), db: Session = Depends(g
         raise HTTPException(status_code=400, detail='File exceeds 10 MB limit.')
 
     try:
-        run = run_reconciliation(db, file.filename or 'statement.csv', contents)
+        run = run_reconciliation(db, file.filename or 'statement.csv', contents, user_id=user_id)
     except BankStatementParseError as e:
         raise HTTPException(status_code=400, detail=f'Failed to parse bank statement: {e}')
 
     return _build_report(db, run)
 
 @router.get('/runs', response_model=list[ReconciliationRunOut])
-def list_runs(limit: int = 50, db: Session = Depends(get_db)) -> list[ReconciliationRunOut]:
+def list_runs(limit: int = 50, db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> list[ReconciliationRunOut]:
+    query = db.query(ReconciliationRun)
+    if user_id is not None:
+        query = query.filter(ReconciliationRun.user_id == user_id)
     return db.query(ReconciliationRun).order_by(ReconciliationRun.created_at.desc()).limit(limit).all()
 
 @router.get('/runs/{run_id}/export')
-def export_run(run_id: uuid.UUID, db: Session = Depends(get_db)) -> Response:
+def export_run(run_id: uuid.UUID, db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> Response:
     """Export a reconciliation run as CSV (one row per matched transaction)."""
-    run = db.get(ReconciliationRun, run_id)
+    run = _get_owned_run(db, run_id, user_id)
     if run is None:
         raise HTTPException(status_code=404, detail='Reconciliation run not found.')
 
@@ -71,8 +82,8 @@ def export_run(run_id: uuid.UUID, db: Session = Depends(get_db)) -> Response:
     return Response(content=buf.getvalue(), media_type='text/csv', headers={'Content-Disposition': f'attachment; filename="reconciliation_run_{run_id}.csv"'})
 
 @router.get('/runs/{run_id}', response_model=ReconciliationSummaryOut)
-def get_run(run_id: uuid.UUID, db: Session = Depends(get_db)) -> ReconciliationSummaryOut:
-    run = db.get(ReconciliationRun, run_id)
+def get_run(run_id: uuid.UUID, db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> ReconciliationSummaryOut:
+    run = _get_owned_run(db, run_id, user_id)
     if run is None:
         raise HTTPException(status_code=404, detail='Reconciliation run not found.')
     return _build_report(db, run)

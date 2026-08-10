@@ -19,6 +19,7 @@ def write_log(db:Session,
     confidence_score: float | None = None,
     error_message: str | None = None,
     duration_ms: int | None = None,
+    user_id: uuid.UUID | None = None,
 ) -> AgentLog:
     entry = AgentLog(
         invoice_id=invoice_id,
@@ -31,6 +32,7 @@ def write_log(db:Session,
         confidence_score=confidence_score,
         error_message=error_message,
         duration_ms=duration_ms,
+        user_id=user_id,
     )
     db.add(entry)
     db.commit()
@@ -38,7 +40,7 @@ def write_log(db:Session,
     return entry
 
 @contextmanager
-def time_step(db: Session, *, invoice_id: uuid.UUID | None, agent_name: str, step_name: str, input_data: dict | None = None):
+def time_step(db: Session, *, invoice_id: uuid.UUID | None, agent_name: str, step_name: str, input_data: dict | None = None, user_id: uuid.UUID | None = None):
     """Context manager that times a step and writes a log entry on exit"""
     started = time.monotonic()
     ctx: dict = {'output_data': None, 'reasoning': None, 'confidence_score': None}
@@ -57,6 +59,7 @@ def time_step(db: Session, *, invoice_id: uuid.UUID | None, agent_name: str, ste
             reasoning=f'Step failed: {e}',
             error_message=str(e),
             duration_ms=duration,
+            user_id=user_id,
         )
         raise
     else:
@@ -73,6 +76,7 @@ def time_step(db: Session, *, invoice_id: uuid.UUID | None, agent_name: str, ste
                 reasoning=ctx.get('reasoning') or 'Step completed successfully.',
                 confidence_score=ctx.get('confidence_score'),
                 duration_ms=duration,
+                user_id=user_id,
             )
         except Exception:
             db.rollback()

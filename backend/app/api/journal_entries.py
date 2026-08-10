@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models.chart_of_accounts import ChartOfAccount
 from app.models.journal_entry import JournalEntry, JournalEntryType
 from app.schemas.journal_entry import JournalEntryLineOut, JournalEntryOut
+from app.security import get_current_user_id
 
 router = APIRouter(prefix='/journal-entries', tags=['journal-entries'])
 
@@ -41,17 +42,22 @@ def _serialize(db: Session, entry: JournalEntry) -> JournalEntryOut:
     )
 
 @router.get('', response_model=list[JournalEntryOut])
-def list_journal_entries(limit: int = 100, entry_type: JournalEntryType | None = None, db: Session = Depends(get_db)) -> list[JournalEntryOut]:
+def list_journal_entries(limit: int = 100, entry_type: JournalEntryType | None = None, db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> list[JournalEntryOut]:
     query = db.query(JournalEntry)
+    if user_id is not None:
+        query = query.filter(JournalEntry.user_id == user_id)
     if entry_type is not None:
         query = query.filter(JournalEntry.entry_type == entry_type)
     entries = query.order_by(JournalEntry.created_at.desc()).limit(limit).all()
     return [_serialize(db, e) for e in entries]
 
 @router.get('/export')
-def export_journal_entries(db: Session = Depends(get_db)) -> Response:
+def export_journal_entries(db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> Response:
     """Export all journal entries as CSV (one row per debit/credit line)."""
-    entries = db.query(JournalEntry).order_by(JournalEntry.entry_date.desc()).all()
+    query = db.query(JournalEntry)
+    if user_id is not None:
+        query = query.filter(JournalEntry.user_id == user_id)
+    entries = query.order_by(JournalEntry.entry_date.desc()).all()
     account_lookup = {a.id: a for a in db.query(ChartOfAccount).all()}
 
     buf = io.StringIO()
@@ -76,8 +82,11 @@ def export_journal_entries(db: Session = Depends(get_db)) -> Response:
     return Response(content=buf.getvalue(), media_type='text/csv', headers={'Content-Disposition': 'attachment; filename="journal_entries.csv"'})
 
 @router.get('/{entry_id}', response_model=JournalEntryOut)
-def get_journal_entry(entry_id: uuid.UUID, db: Session = Depends(get_db)) -> JournalEntryOut:
-    entry = db.get(JournalEntry, entry_id)
+def get_journal_entry(entry_id: uuid.UUID, db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> JournalEntryOut:
+    query = db.query(JournalEntry).filter(JournalEntry.id == entry_id)
+    if user_id is not None:
+        query = query.filter(JournalEntry.user_id == user_id)
+    entry = query.first()
     if entry is None:
         raise HTTPException(status_code=404, detail=f'Journal entry not found')
     return _serialize(db, entry)

@@ -15,6 +15,7 @@ from app.api.journal_entries import _serialize as serialize_journal_entry
 from app.agents.validation_agents import validate_entry
 from app.services.invoice_processor import process_invoice, reclassify_invoice, _classifiable_accounts
 from app.services.review_service import ReviewError, submit_review
+from app.security import get_current_user_id
 
 router = APIRouter(prefix='/invoices', tags=['invoices'])
 log = logging.getLogger(__name__)
@@ -22,8 +23,15 @@ log = logging.getLogger(__name__)
 ALLOWED_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp', '.webp', '.heic', '.heif'}
 MAX_FILE_BYTES = 20 * 1024 * 1024 # 20 MB
 
+def _get_owned_invoice(db: Session, invoice_id: uuid.UUID, user_id: uuid.UUID | None = None) -> Invoice | None:
+    query = db.query(Invoice).filter(Invoice.id == invoice_id)
+    if user_id is not None:
+        query = query.filter(Invoice.user_id == user_id)
+    
+    return query.first()
+
 @router.post('/upload', response_model=UploadResponse, status_code=201)
-async def upload_invoice(background_tasks: BackgroundTasks, file: UploadFile = File(...), db: Session = Depends(get_db)) -> UploadResponse:
+async def upload_invoice(background_tasks: BackgroundTasks, file: UploadFile = File(...), db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> UploadResponse:
     ext = os.path.splitext(file.filename or '')[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Unsupported file type '{ext}'. Allowed: {sorted(ALLOWED_EXTENSIONS)}")
@@ -43,7 +51,7 @@ async def upload_invoice(background_tasks: BackgroundTasks, file: UploadFile = F
     with open(stored_path, 'wb') as f:
         f.write(contents)
 
-    invoice = Invoice(id=invoice_id, filename=file.filename or stored_name, file_path=stored_path, status=InvoiceStatus.PENDING)
+    invoice = Invoice(id=invoice_id, filename=file.filename or stored_name, file_path=stored_path, status=InvoiceStatus.PENDING, user_id=user_id)
     db.add(invoice)
     db.commit()
 
@@ -52,29 +60,31 @@ async def upload_invoice(background_tasks: BackgroundTasks, file: UploadFile = F
     return (UploadResponse(invoice_id=invoice_id, status=InvoiceStatus.PENDING, message='Invoice uploaded. Processing started.'))
 
 @router.get('', response_model=list[InvoiceSummaryOut])
-def list_invoices(status: InvoiceStatus | None = None, limit: int = 100, db: Session = Depends(get_db)) -> list[Invoice]:
+def list_invoices(status: InvoiceStatus | None = None, limit: int = 100, db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> list[Invoice]:
     query = db.query(Invoice)
+    if user_id is not None:
+        query = query.filter(Invoice.user_id == user_id)
     if status:
         query = query.filter(Invoice.status == status)
     return query.order_by(Invoice.upload_date.desc()).limit(limit).all()
 
 @router.get('/{invoice_id}', response_model=InvoiceOut)
-def get_invoice(invoice_id: uuid.UUID, db: Session = Depends(get_db)) -> Invoice:
-    invoice = db.get(Invoice, invoice_id)
+def get_invoice(invoice_id: uuid.UUID, db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> Invoice:
+    invoice = _get_owned_invoice(db, invoice_id, user_id)
     if invoice is None:
         raise HTTPException(status_code=404, detail='Invoice not found.')
     return invoice
 
 @router.get('/{invoice_id}/logs', response_model=list[AgentLogOut])
-def get_invoice_logs(invoice_id: uuid.UUID, db: Session = Depends(get_db)) -> list[AgentLog]:
-    invoice = db.get(Invoice, invoice_id)
+def get_invoice_logs(invoice_id: uuid.UUID, db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> list[AgentLog]:
+    invoice = _get_owned_invoice(db, invoice_id, user_id)
     if invoice is None:
         raise HTTPException(status_code=404, detail='Invoice not found.')
     return (db.query(AgentLog).filter(AgentLog.invoice_id == invoice_id).order_by(AgentLog.created_at.desc()).all())
 
 @router.post('/{invoice_id}/reprocess', response_model=UploadResponse)
-def reprocess_invoice(invoice_id: uuid.UUID, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> UploadResponse:
-    invoice = db.get(Invoice, invoice_id)
+def reprocess_invoice(invoice_id: uuid.UUID, background_tasks: BackgroundTasks, db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> UploadResponse:
+    invoice = _get_owned_invoice(db, invoice_id, user_id)
     if invoice is None:
         raise HTTPException(status_code=404, detail='Invoice not found.')
     invoice.status = InvoiceStatus.PENDING
@@ -86,8 +96,8 @@ def reprocess_invoice(invoice_id: uuid.UUID, background_tasks: BackgroundTasks, 
     return (UploadResponse(invoice_id=invoice_id, status=InvoiceStatus.PENDING, message='Reprocessing started.'))
 
 @router.get('/{invoice_id}/journal-entry', response_model=JournalEntryOut)
-def get_invoice_journal_entry(invoice_id: uuid.UUID, db: Session = Depends(get_db)) -> JournalEntryOut:
-    invoice = db.get(Invoice, invoice_id)
+def get_invoice_journal_entry(invoice_id: uuid.UUID, db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> JournalEntryOut:
+    invoice = _get_owned_invoice(db, invoice_id, user_id)
     if invoice is None:
         raise HTTPException(status_code=404, detail='Invoice not found.')
     entry = db.query(JournalEntry).filter(JournalEntry.invoice_id == invoice_id, JournalEntry.entry_type == JournalEntryType.BILL).order_by(JournalEntry.entry_date.desc()).first()
@@ -96,8 +106,8 @@ def get_invoice_journal_entry(invoice_id: uuid.UUID, db: Session = Depends(get_d
     return serialize_journal_entry(db, entry)
 
 @router.get('/{invoice_id}/payment-entry', response_model=JournalEntryOut)
-def get_invoice_payment_entry(invoice_id: uuid.UUID, db: Session = Depends(get_db)) -> JournalEntryOut:
-    invoice = db.get(Invoice, invoice_id)
+def get_invoice_payment_entry(invoice_id: uuid.UUID, db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> JournalEntryOut:
+    invoice = _get_owned_invoice(db, invoice_id, user_id)
     if invoice is None:
         raise HTTPException(status_code=404, detail='Invoice not found.')
     entry = db.query(JournalEntry).filter(JournalEntry.invoice_id == invoice_id, JournalEntry.entry_type == JournalEntryType.PAYMENT).order_by(JournalEntry.entry_date.desc()).first()
@@ -106,16 +116,16 @@ def get_invoice_payment_entry(invoice_id: uuid.UUID, db: Session = Depends(get_d
     return serialize_journal_entry(db, entry)
 
 @router.post('/{invoice_id}/reclassify', response_model=UploadResponse)
-def reclassify(invoice_id: uuid.UUID, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> UploadResponse:
-    invoice = db.get(Invoice, invoice_id)
+def reclassify(invoice_id: uuid.UUID, background_tasks: BackgroundTasks, db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> UploadResponse:
+    invoice = _get_owned_invoice(db, invoice_id, user_id)
     if invoice is None:
         raise HTTPException(status_code=404, detail='Invoice not found.')
     background_tasks.add_task(reclassify_invoice, invoice_id)
     return UploadResponse(invoice_id=invoice_id, status=InvoiceStatus.PENDING, message='Reclassification started.')
 
 @router.get('/{invoice_id}/review', response_model=ReviewDetailOut)
-def get_review_detail(invoice_id: uuid.UUID, db: Session = Depends(get_db)) -> ReviewDetailOut:
-    invoice = db.get(Invoice, invoice_id)
+def get_review_detail(invoice_id: uuid.UUID, db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> ReviewDetailOut:
+    invoice = _get_owned_invoice(db, invoice_id, user_id)
     if invoice is None:
         raise HTTPException(status_code=404, detail='Invoice not found.')
 
@@ -170,9 +180,9 @@ def get_review_detail(invoice_id: uuid.UUID, db: Session = Depends(get_db)) -> R
     )
 
 @router.post('/{invoice_id}/review', response_model=ReviewSubmitResponse)
-def submit_review_endpoint(invoice_id: uuid.UUID, submission: ReviewSubmission, db: Session = Depends(get_db)) -> ReviewSubmitResponse:
+def submit_review_endpoint(invoice_id: uuid.UUID, submission: ReviewSubmission, db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> ReviewSubmitResponse:
     try:
-        invoice, entry, validation = submit_review(db, invoice_id, submission.overrides, submission.tax_account_code)
+        invoice, entry, validation = submit_review(db, invoice_id, submission.overrides, submission.tax_account_code, requesting_user_id=user_id)
     except ReviewError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

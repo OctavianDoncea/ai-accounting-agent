@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models.bank_transaction import ReconciliationRun
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.journal_entry import JournalEntry, JournalEntryStatus
+from app.security import get_current_user_id
 
 router = APIRouter(prefix='/dashboard', tags=['dashboard'])
 
@@ -44,16 +45,36 @@ class DashboardSummary(BaseModel):
 
 
 @router.get('/summary', response_model=DashboardSummary)
-def get_summary(db: Session = Depends(get_db)) -> DashboardSummary:
+def get_summary(db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> DashboardSummary:
+    invoice_counts_query = db.query(Invoice.status, func.count())
+    if user_id is not None:
+        invoice_counts_query = invoice_counts_query.filter(Invoice.user_id == user_id)
     invoice_counts = {s.value: 0 for s in InvoiceStatus}
-    for status, n in db.query(Invoice.status, func.count()).group_by(Invoice.status).all():
+    for status, n in invoice_counts_query.group_by(Invoice.status).all():
         invoice_counts[status.value] = n
 
-    je_posted = db.query(func.count(), func.coalesce(func.sum(JournalEntry.total_credit), 0)).filter(JournalEntry.status == JournalEntryStatus.POSTED).first()
-    je_draft = db.query(func.count()).filter(JournalEntry.status == JournalEntryStatus.DRAFT).scalar()
-    runs_count = db.query(func.count(ReconciliationRun.id)).scalar() or 0
-    recent_invoices = db.query(Invoice).order_by(Invoice.upload_date.desc()).limit(5).all()
-    recent_runs = db.query(ReconciliationRun).order_by(ReconciliationRun.created_at.desc()).limit(5).all()
+    je_posted_query = db.query(
+        func.count(), func.coalesce(func.sum(JournalEntry.total_credit), 0)
+    ).filter(JournalEntry.status == JournalEntryStatus.POSTED)
+    je_draft_query = db.query(func.count()).filter(JournalEntry.status == JournalEntryStatus.DRAFT)
+    runs_count_query = db.query(func.count(ReconciliationRun.id))
+    if user_id is not None:
+        je_posted_query = je_posted_query.filter(JournalEntry.user_id == user_id)
+        je_draft_query = je_draft_query.filter(JournalEntry.user_id == user_id)
+        runs_count_query = runs_count_query.filter(ReconciliationRun.user_id == user_id)
+
+    je_posted = je_posted_query.first()
+    je_draft = je_draft_query.scalar()
+    runs_count = runs_count_query.scalar() or 0
+
+    recent_invoices_query = db.query(Invoice)
+    recent_runs_query = db.query(ReconciliationRun)
+    if user_id is not None:
+        recent_invoices_query = recent_invoices_query.filter(Invoice.user_id == user_id)
+        recent_runs_query = recent_runs_query.filter(ReconciliationRun.user_id == user_id)
+
+    recent_invoices = recent_invoices_query.order_by(Invoice.upload_date.desc()).limit(5).all()
+    recent_runs = recent_runs_query.order_by(ReconciliationRun.created_at.desc()).limit(5).all()
 
     return DashboardSummary(
         invoice_counts=invoice_counts,

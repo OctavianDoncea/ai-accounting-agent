@@ -25,6 +25,7 @@ class ReconciliationRun(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     filename: Mapped[str] = mapped_column(String(500), nullable=False)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=True, index=True)
     bank_transaction_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     matched_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     unmatched_bank_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

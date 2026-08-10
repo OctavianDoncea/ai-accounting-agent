@@ -1,3 +1,4 @@
+import uuid
 from decimal import Decimal
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
@@ -6,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.chart_of_accounts import ChartOfAccount, AccountType, NormalBalance
 from app.models.journal_entry import JournalEntry, JournalEntryStatus, JournalEntryLines
+from app.security import get_current_user_id
 
 router = APIRouter(prefix='/reports', tags=['reports'])
 
@@ -27,7 +29,7 @@ class TrialBalance(BaseModel):
 
 
 @router.get('/trial-balance', response_model=TrialBalance)
-def trial_balance(db: Session = Depends(get_db)) -> TrialBalance:
+def trial_balance(db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> TrialBalance:
     rows_q = (
         db.query(
             ChartOfAccount.account_code,
@@ -40,15 +42,15 @@ def trial_balance(db: Session = Depends(get_db)) -> TrialBalance:
         .join(JournalEntryLines, JournalEntryLines.account_id == ChartOfAccount.id)
         .join(JournalEntry, JournalEntry.id == JournalEntryLines.journal_entry_id)
         .filter(JournalEntry.status == JournalEntryStatus.POSTED)
-        .group_by(
-            ChartOfAccount.account_code,
-            ChartOfAccount.account_name,
-            ChartOfAccount.account_type,
-            ChartOfAccount.normal_balance,
-        )
-        .order_by(ChartOfAccount.account_code)
-        .all()
     )
+    if user_id is not None:
+        rows_query = rows_query.filter(JournalEntry.user_id == user_id)
+    rows_q = rows_query.group_by(
+        ChartOfAccount.account_code,
+        ChartOfAccount.account_name,
+        ChartOfAccount.account_type,
+        ChartOfAccount.normal_balance
+    ).order_by(ChartOfAccount.account_code).all()
 
     rows: list[TrialBalanceRow] = []
     total_debits = Decimal('0')
@@ -84,22 +86,29 @@ class ExpenseBreakdownRow(BaseModel):
 
 
 @router.get('/expense-breakdown', response_model=list[ExpenseBreakdownRow])
-def expense_breakdown(db: Session = Depends(get_db)) -> list[ExpenseBreakdownRow]:
-    rows = (
+def expense_breakdown(db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> list[ExpenseBreakdownRow]:
+    query = (
         db.query(
             ChartOfAccount.account_code,
             ChartOfAccount.account_name,
-            func.coalesce(func.sum(JournalEntryLines.debit_amount), 0).label('total'),
+            func.coalesce(func.sum(JournalEntryLines.debit_amount), 0).label("total"),
         )
         .join(JournalEntryLines, JournalEntryLines.account_id == ChartOfAccount.id)
         .join(JournalEntry, JournalEntry.id == JournalEntryLines.journal_entry_id)
-        .filter(JournalEntry.status == JournalEntryStatus.POSTED, ChartOfAccount.account_type == AccountType.EXPENSE)
+        .filter(
+            JournalEntry.status == JournalEntryStatus.POSTED,
+            ChartOfAccount.account_type == AccountType.EXPENSE,
+        )
+    )
+    if user_id is not None:
+        query = query.filter(JournalEntry.user_id == user_id)
+    rows = (
+        query
         .group_by(ChartOfAccount.account_code, ChartOfAccount.account_name)
         .having(func.sum(JournalEntryLines.debit_amount) > 0)
         .order_by(func.sum(JournalEntryLines.debit_amount).desc())
         .all()
-    )   
-
+    )
     return [
         ExpenseBreakdownRow(account_code=r.account_code, account_name=r.account_name, total=Decimal(r.total))
         for r in rows

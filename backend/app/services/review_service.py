@@ -15,10 +15,10 @@ class ReviewError(ValueError):
     """Raised for invalid review submissions"""
 
 
-def submit_review(db: Session, invoice_id, overrides: list[LineOverride], tax_account_code: str | None = None) -> tuple[Invoice, JournalEntry, ValidationResult]:
+def submit_review(db: Session, invoice_id, overrides: list[LineOverride], tax_account_code: str | None = None, requesting_user_id=None) -> tuple[Invoice, JournalEntry, ValidationResult]:
     """Apply a human reviewer's account choices, rebuild the journal entry"""
     invoice = db.get(Invoice, invoice_id)
-    if invoice is None:
+    if invoice is None or (requesting_user_id is not None and invoice.user_id != requesting_user_id):
         raise ReviewError('Invoice not found.')
     if invoice.status != InvoiceStatus.NEEDS_REVIEW:
         raise ReviewError(f'Invoice is "{invoice.status.value}", not NEEDS_REVIEW. Nothing to review.')
@@ -67,6 +67,7 @@ def submit_review(db: Session, invoice_id, overrides: list[LineOverride], tax_ac
     write_log(
         db,
         invoice_id = invoice.id,
+        user_id = invoice.user_id,
         agent_name = 'human_reviewer',
         step_name = 'manual_override',
         status = AgentLogStatus.SUCCESS if validation.is_valid else AgentLogStatus.FLAGGED,
