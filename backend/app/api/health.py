@@ -58,4 +58,5 @@ def health(db: Session = Depends(get_db)) -> dict:
             'model': settings.groq_model if llm_provider == 'groq' else settings.ollama_model,
             'error': llm_error,
         },
+        'auth_enabled': bool(settings.jwt_secret)
     }

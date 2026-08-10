@@ -22,3 +22,6 @@ pytest-cov
 pillow-heif
 opencv-python-headless
 numpy
+bcrypt
+pyjwt
+email-validator

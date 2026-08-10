@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     # App
     upload_dir: str = '/app/uploads'
 
+    # Auth
+    jwt_secret: str = ''
+    jwt_expire_hours: int = 24 * 7
+
     model_config = SettingsConfigDict(
         env_file='.env',
         case_sensitive=False,
