@@ -37,7 +37,9 @@ st.divider()
 
 # Summary metrics
 try:
-    summary = requests.get(f"{BACKEND_URL}/dashboard/summary", timeout=5).json()
+    resp = api_get(f"{BACKEND_URL}/dashboard/summary", timeout=5)
+    resp.raise_for_status()
+    summary = resp.json()
 except Exception as exc:
     st.error(f"Could not load dashboard: {exc}")
     st.stop()
