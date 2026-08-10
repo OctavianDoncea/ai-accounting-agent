@@ -3,10 +3,13 @@ import pandas as pd
 import requests
 import streamlit as st
 from ui_helpers import format_money, format_date, INVOICE_STATUS_BADGE
+from auth import api_get, api_post, require_login, logout_button
 
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://backend:8000')
 
 st.set_page_config(page_title='AI Accounting Agent', layout='wide')
+require_login()
+logout_button()
 
 # Header
 st.title('AI Accounting Agent')
@@ -52,13 +55,13 @@ draft = summary["journal_entries_draft"]
 if needs_review or draft or counts.get("FAILED"):
     sub = st.columns(4)
     if needs_review:
-        sub[0].warning(f"🟠 **{needs_review}** invoice(s) need review")
+        sub[0].warning(f"**{needs_review}** invoice(s) need review")
     if draft:
-        sub[1].warning(f"📝 **{draft}** draft journal entr{'y' if draft == 1 else 'ies'}")
+        sub[1].warning(f"**{draft}** draft journal entr{'y' if draft == 1 else 'ies'}")
     if counts.get("FAILED"):
-        sub[2].error(f"❌ **{counts['FAILED']}** failed invoice(s)")
+        sub[2].error(f"**{counts['FAILED']}** failed invoice(s)")
     if counts.get("DUPLICATE"):
-        sub[3].info(f"🟡 **{counts['DUPLICATE']}** duplicate(s)")
+        sub[3].info(f"**{counts['DUPLICATE']}** duplicate(s)")
 
 st.divider()
 
