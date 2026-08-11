@@ -1,46 +1,75 @@
 import os
 from datetime import datetime, timedelta, timezone
+
 import extra_streamlit_components as stx
 import requests
 import streamlit as st
+from streamlit.runtime.scriptrunner import get_script_run_ctx
 
 TOKEN_COOKIE = 'aaa_access_token'
 EMAIL_COOKIE = 'aaa_user_email'
-
 COOKIE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
+
 
 def _backend_url() -> str:
     return os.environ.get('BACKEND_URL', 'http://backend:8000')
 
+
 def _cookie_manager() -> stx.CookieManager:
-    return stx.CookieManager(key='aaa_auth_cookies')
+    """One CookieManager per script run — Streamlit forbids duplicate keys."""
+    ctx = get_script_run_ctx()
+    run_token = id(ctx) if ctx is not None else None
+    cached = st.session_state.get('_aaa_cm_cache')
+    if cached is not None and cached.get('run_token') == run_token:
+        return cached['cm']
+
+    cm = stx.CookieManager(key='aaa_auth_cookies')
+    st.session_state['_aaa_cm_cache'] = {'run_token': run_token, 'cm': cm}
+    return cm
+
 
 def _auth_headers() -> dict:
     token = st.session_state.get('access_token')
     return {'Authorization': f'Bearer {token}'} if token else {}
 
+
 def api_get(url: str, **kwargs):
     headers = {**_auth_headers(), **kwargs.pop('headers', {})}
     return requests.get(url, headers=headers, **kwargs)
 
+
 def api_post(url: str, **kwargs):
     headers = {**_auth_headers(), **kwargs.pop('headers', {})}
     return requests.post(url, headers=headers, **kwargs)
+
 
 def _save_auth(token: str, email: str) -> None:
     st.session_state['access_token'] = token
     st.session_state['user_email'] = email
     cm = _cookie_manager()
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=COOKIE_MAX_AGE_SECONDS)
-    cm.set(TOKEN_COOKIE, token, expires_at=expires_at, max_age=COOKIE_MAX_AGE_SECONDS, same_site='lax')
-    cm.set(EMAIL_COOKIE, email, expires_at=expires_at, max_age=COOKIE_MAX_AGE_SECONDS, same_site='lax')
+    cm.set(
+        TOKEN_COOKIE, token,
+        key='aaa_set_token',
+        expires_at=expires_at,
+        max_age=COOKIE_MAX_AGE_SECONDS,
+        same_site='lax',
+    )
+    cm.set(
+        EMAIL_COOKIE, email,
+        key='aaa_set_email',
+        expires_at=expires_at,
+        max_age=COOKIE_MAX_AGE_SECONDS,
+        same_site='lax',
+    )
+
 
 def _clear_auth() -> None:
     st.session_state.pop('access_token', None)
     st.session_state.pop('user_email', None)
     cm = _cookie_manager()
-    cm.delete(TOKEN_COOKIE)
-    cm.delete(EMAIL_COOKIE)
+    cm.delete(TOKEN_COOKIE, key='aaa_delete_token')
+    cm.delete(EMAIL_COOKIE, key='aaa_delete_email')
 
 def _restore_auth_from_cookies(cm: stx.CookieManager) -> None:
     if st.session_state.get('access_token'):
