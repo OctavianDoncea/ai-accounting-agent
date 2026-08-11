@@ -44,8 +44,8 @@ def trial_balance(db: Session = Depends(get_db), user_id: uuid.UUID | None = Dep
         .filter(JournalEntry.status == JournalEntryStatus.POSTED)
     )
     if user_id is not None:
-        rows_query = rows_query.filter(JournalEntry.user_id == user_id)
-    rows_q = rows_query.group_by(
+        rows_q = rows_q.filter(JournalEntry.user_id == user_id)
+    rows_q = rows_q.group_by(
         ChartOfAccount.account_code,
         ChartOfAccount.account_name,
         ChartOfAccount.account_type,
