@@ -1,30 +1,42 @@
 import os
 import pandas as pd
-import requests
 import streamlit as st
+from auth import api_get, api_post, require_login, logout_button
 from ui_helpers import INVOICE_STATUS_BADGE, JE_STATUS_BADGE, format_money, format_date
 
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://backend:8000')
 
 st.set_page_config(page_title='Invoices', layout='wide')
+require_login()
+logout_button()
+
 st.title('Invoices')
 
+def _token() -> str | None:
+    return st.session_state.get('access_token')
+
 @st.cache_data(ttl=3)
-def fetch_invoices():
-    return requests.get(f'{BACKEND_URL}/invoices', timeout=10).json()
+def fetch_invoices(_auth_token: str | None):
+    r = api_get(f'{BACKEND_URL}/invoices', timeout=10)
+    r.raise_for_status()
+    return r.json()
 
 def fetch_details(invoice_id):
-    return requests.get(f'{BACKEND_URL}/invoices/{invoice_id}', timeout=10).json()
+    r = api_get(f'{BACKEND_URL}/invoices/{invoice_id}', timeout=10)
+    r.raise_for_status()
+    return r.json()
 
 def fetch_logs(invoice_id):
-    return requests.get(f'{BACKEND_URL}/invoices/{invoice_id}/logs', timeout=10).json()
+    r = api_get(f'{BACKEND_URL}/invoices/{invoice_id}/logs', timeout=10)
+    r.raise_for_status()
+    return r.json()
 
 def fetch_journal_entry(invoice_id):
-    r = requests.get(f'{BACKEND_URL}/invoices/{invoice_id}/journal-entry', timeout=10)
+    r = api_get(f'{BACKEND_URL}/invoices/{invoice_id}/journal-entry', timeout=10)
     return None if r.status_code == 404 else r.json()
 
 def fetch_payment_entry(invoice_id):
-    r = requests.get(f'{BACKEND_URL}/invoices/{invoice_id}/payment-entry', timeout=10)
+    r = api_get(f'{BACKEND_URL}/invoices/{invoice_id}/payment-entry', timeout=10)
     return None if r.status_code == 404 else r.json()
 
 # Top bar
@@ -33,7 +45,7 @@ if top[0].button('Refresh'):
     st.cache_data.clear()
 
 try:
-    invoices = fetch_invoices()
+    invoices = fetch_invoices(_token())
 except Exception as e:
     st.error(f'Could not reach backend: {e}')
     st.stop()
@@ -100,14 +112,14 @@ if items:
 act = st.columns(3)
 if act[0].button('Reprocess (full pipeline)'):
     try:
-        requests.post(f'{BACKEND_URL}/invoices/{invoice_id}/reprocess', timeout=10)
+        api_post(f'{BACKEND_URL}/invoices/{invoice_id}/reprocess', timeout=10).raise_for_status()
         st.cache_data.clear()
         st.success('Reprocessing started. Refresh in a few seconds.')
     except Exception as e:
         st.error(f'Request failed: {e}')
 if act[1].button('Re-classify only'):
     try:
-        requests.post(f'{BACKEND_URL}/invoices/{invoice_id}/reclassify', timeout=10)
+        api_post(f'{BACKEND_URL}/invoices/{invoice_id}/reclassify', timeout=10).raise_for_status()
         st.cache_data.clear()
         st.success('Re-classification started. Refresh in a few seconds.')
     except Exception as e:

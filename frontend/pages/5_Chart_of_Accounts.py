@@ -1,17 +1,21 @@
-import enum
 import os
 import pandas as pd
-import requests
 import streamlit as st
+from auth import api_get, require_login, logout_button
 
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://backend:8000')
 
 st.set_page_config(page_title='Chart of Accounts', layout='wide')
+require_login()
+logout_button()
+
 st.title('Chart of Accounts')
 st.caption('The general-ledger accounts the classification agent maps invoice line items against.')
 
 try:
-    accounts = requests.get(f'{BACKEND_URL}/chart-of-accounts', timeout=10).json()
+    resp = api_get(f'{BACKEND_URL}/chart-of-accounts', timeout=10)
+    resp.raise_for_status()
+    accounts = resp.json()
 except Exception as e:
     st.error(f'Could not load chart of accounts: {e}')
     st.stop()

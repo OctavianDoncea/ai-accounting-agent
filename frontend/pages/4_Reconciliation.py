@@ -1,11 +1,14 @@
 import os
 import pandas as pd
-import requests
 import streamlit as st
+from auth import api_get, api_post, require_login, logout_button
 
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://backend:8000')
 
 st.set_page_config(page_title='Reconciliation', layout='wide')
+require_login()
+logout_button()
+
 st.title('Bank Reconciliation')
 st.caption('Upload a bank statement (CSV). The agent matches payments against posted journal entries.')
 
@@ -14,9 +17,9 @@ uploaded = st.file_uploader('Bank statement (CSV)', type=['csv', 'txt'])
 if uploaded is not None and st.button('Reconcile', type='primary'):
     files = {'file': (uploaded.name, uploaded.getvalue(), 'text/csv')}
     try:
-        resp = requests.post(f'{BACKEND_URL}/reconciliation/upload', files=files, timeout=60)
+        resp = api_post(f'{BACKEND_URL}/reconciliation/upload', files=files, timeout=60)
     except Exception as e:
-        st.error('Uplaod failed: {e}')
+        st.error(f'Upload failed: {e}')
         st.stop()
     if resp.status_code != 201:
         st.error(f"Reconciliation failed: {resp.json().get('detail', resp.text)}")
@@ -74,7 +77,9 @@ if report:
 st.divider()
 st.subheader('Past reconciliation runs')
 try:
-    runs = requests.get(f'{BACKEND_URL}/reconciliation/runs', timeout=10).json()
+    runs_resp = api_get(f'{BACKEND_URL}/reconciliation/runs', timeout=10)
+    runs_resp.raise_for_status()
+    runs = runs_resp.json()
     if runs:
         df = pd.DataFrame(runs)[['created_at', 'filename', 'matched_count', 'unmatched_bank_count', 'unmatched_journal_count', 'total_matched_amount']]
         df.columns = ['When', 'File', 'Matched', 'Unmatched payments', 'Unpaid bills', 'Matched total']

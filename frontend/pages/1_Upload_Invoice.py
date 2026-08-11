@@ -1,12 +1,15 @@
 import os
 import time
-import requests
 import streamlit as st
+from auth import api_get, api_post, require_login, logout_button
 from ui_helpers import INVOICE_STATUS_BADGE, format_money
 
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://backend:8000')
 
 st.set_page_config(page_title='Upload Invoice', layout='centered')
+require_login()
+logout_button()
+
 st.title('Upload Invoice')
 st.caption('Upload a PDF or image. The agent will OCR it, extract structured fields, and check for duplicates.')
 
@@ -15,7 +18,7 @@ uploaded = st.file_uploader('Choose an invoice file', type=['pdf', 'jpg', 'jpeg'
 if uploaded is not None and st.button('Process invoice', type='primary'):
     files = {'file': (uploaded.name, uploaded.getvalue(), uploaded.type or 'application/octet-stream')}
     try:
-        resp = requests.post(f'{BACKEND_URL}/invoices/upload', files=files, timeout=30)
+        resp = api_post(f'{BACKEND_URL}/invoices/upload', files=files, timeout=30)
         resp.raise_for_status()
     except Exception as e:
         st.error(f'Failed to upload invoice: {e}')
@@ -44,8 +47,12 @@ if uploaded is not None and st.button('Process invoice', type='primary'):
     for i in range(180):
         time.sleep(1)
         try:
-            detail = requests.get(f'{BACKEND_URL}/invoices/{invoice_id}', timeout=10).json()
-            logs = requests.get(f'{BACKEND_URL}/invoices/{invoice_id}/logs', timeout=10).json()
+            detail_resp = api_get(f'{BACKEND_URL}/invoices/{invoice_id}', timeout=10)
+            logs_resp = api_get(f'{BACKEND_URL}/invoices/{invoice_id}/logs', timeout=10)
+            detail_resp.raise_for_status()
+            logs_resp.raise_for_status()
+            detail = detail_resp.json()
+            logs = logs_resp.json()
         except Exception:
             continue
         status = detail['status']

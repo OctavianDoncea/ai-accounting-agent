@@ -3,7 +3,7 @@ import pandas as pd
 import requests
 import streamlit as st
 from ui_helpers import format_money, format_date, INVOICE_STATUS_BADGE
-from auth import api_get, api_post, require_login, logout_button
+from auth import api_get, require_login, logout_button
 
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://backend:8000')
 

@@ -1,22 +1,30 @@
 import os
-import requests
 import streamlit as st
+from auth import api_get, api_post, require_login, logout_button
 from ui_helpers import format_money
 
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://backend:8000')
 
 st.set_page_config(page_title='Review', layout='wide')
+require_login()
+logout_button()
+
 st.title('Manual Review')
 st.caption("Invoices the pipeline couldn't safely auto-post: low extraction confidence, a missing vendor, an unbalanced entry, "
     'or a fallback account being used. Pick the correct GL account per line item below. This goes through the same builder and validator the automated path uses.'    
 )
 
+def _token() -> str | None:
+    return st.session_state.get('access_token')
+
 @st.cache_data(ttl=3)
-def fetch_invoices():
-    return requests.get(f'{BACKEND_URL}/invoices').json()
+def fetch_invoices(_auth_token: str | None):
+    r = api_get(f'{BACKEND_URL}/invoices', timeout=10)
+    r.raise_for_status()
+    return r.json()
 
 def fetch_review_detail(invoice_id):
-    r = requests.get(f'{BACKEND_URL}/invoices/{invoice_id}/review', timeout=10)
+    r = api_get(f'{BACKEND_URL}/invoices/{invoice_id}/review', timeout=10)
     r.raise_for_status()
     return r.json()
 
@@ -25,7 +33,7 @@ if top[0].button('Refresh'):
     st.cache_data.clear()
 
 try:
-    invoices = fetch_invoices()
+    invoices = fetch_invoices(_token())
 except Exception as e:
     st.error(f'Could not reach backend: {e}')
     st.stop()
@@ -106,7 +114,7 @@ st.divider()
 if st.button('Approve and post', type='primary'):
     payload = {'overrides': overrides, 'tax_account_code': tax_account_code}
     try:
-        r = requests.post(f'{BACKEND_URL}/invoices/{invoice_id}/review', json=payload, timeout=15)
+        r = api_post(f'{BACKEND_URL}/invoices/{invoice_id}/review', json=payload, timeout=15)
     except Exception as e:
         st.error(f'Request failed: {e}')
         st.stop()

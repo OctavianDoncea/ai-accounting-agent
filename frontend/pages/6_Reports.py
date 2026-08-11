@@ -1,12 +1,15 @@
 import os
 import pandas as pd
-import requests
 import streamlit as st
+from auth import api_get, require_login, logout_button
 from ui_helpers import format_money
 
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://backend:8000')
 
 st.set_page_config(page_title='Reports', layout='wide')
+require_login()
+logout_button()
+
 st.title('Accounting Reports')
 st.caption('Reports derived from posted journal entries.')
 
@@ -15,7 +18,9 @@ st.subheader('Trial Balance')
 st.caption('Sum of debits and credits per active account. In a healthy ledger, the totals match.')
 
 try:
-    tb = requests.get(f'{BACKEND_URL}/reports/trial-balance', timeout=10).json()
+    tb_resp = api_get(f'{BACKEND_URL}/reports/trial-balance', timeout=10)
+    tb_resp.raise_for_status()
+    tb = tb_resp.json()
 except Exception as e:
     st.error(f'Could not load trial balance: {e}')
     st.stop()
@@ -48,7 +53,9 @@ st.subheader('Spending by category')
 st.caption('Total debited to each expense account from posted entries.')
 
 try:
-    breakdown = requests.get(f'{BACKEND_URL}/reports/expense-breakdown', timeout=10).json()
+    breakdown_resp = api_get(f'{BACKEND_URL}/reports/expense-breakdown', timeout=10)
+    breakdown_resp.raise_for_status()
+    breakdown = breakdown_resp.json()
 except Exception as e:
     st.error(f'Could not load expense breakdown: {e}')
     st.stop()
