@@ -37,7 +37,7 @@ def submit_review(db: Session, invoice_id, overrides: list[LineOverride], tax_ac
             raise ReviewError(f'Line item {o.line_id} not found on this invoice.')
 
     classification = ClassificationResult(
-        classification = [
+        classifications = [
             LineClassification(line_index=line_index_by_id[o.line_id], account_code=o.account_code, confidence=1.0, reasoning='Manually approved by reviewer.')
             for o in overrides
         ],

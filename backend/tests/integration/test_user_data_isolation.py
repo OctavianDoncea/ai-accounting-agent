@@ -5,12 +5,12 @@ from datetime import date
 from decimal import Decimal
 from app.config import settings
 from app.models.chart_of_accounts import ChartOfAccount
-from app.models.invoice import Invoice, InvoiceStatus
+from app.models.invoice import Invoice, InvoiceStatus, InvoiceLineItems
 from app.models.journal_entry import JournalEntry, JournalEntryStatus, JournalEntryLines, JournalEntryType
 
 @pytest.fixture
 def auth_enabled():
-    settings.jwt_secret = 'isolation-test-secret'
+    settings.jwt_secret = 'isolation-test-secret-key-32b!!'
     yield
     settings.jwt_secret = ''
 
@@ -150,7 +150,7 @@ class TestReconciliationIsolation:
         _make_posted_bill(db, two_users['user_id_a'], vendor='AliceUnpaidBill', total=Decimal('999.00'))
         csv = b'Date,Description,Amount\n2026-05-05,UNRELATED,-1.00\n'
         r = client.post('/reconciliation/upload', files={'file': ('stmt.csv', csv, 'text/csv')}, headers=_auth(two_users['token_b']))
-        vendors_shown = {row['vendor_name'] for row in r.json()['unmatched_bills']}
+        vendors_shown = {row['vendor_name'] for row in r.json()['unmatched_journal']}
         assert 'AliceUnpaidBill' not in vendors_shown
 
     
@@ -160,8 +160,8 @@ class TestDashboardIsolation:
         _make_invoice(db, two_users['user_id_a'])
         _make_invoice(db, two_users['user_id_b'])
 
-        assert client.get('/dashboard/summary', headers=_auth(two_users['token_a'])).json()['invoice_count'] == 2
-        assert client.get('/dashboard/summary', headers=_auth(two_users['token_b'])).json()['invoice_count'] == 1
+        assert client.get('/dashboard/summary', headers=_auth(two_users['token_a'])).json()['total_invoices'] == 2
+        assert client.get('/dashboard/summary', headers=_auth(two_users['token_b'])).json()['total_invoices'] == 1
 
     def test_recent_invoices_scoped_to_owner(self, db, client, two_users):
         _make_invoice(db, two_users['user_id_a'], vendor='AliceOnly')
@@ -177,8 +177,8 @@ class TestReportsIsolation:
 
         r_a = client.get('/reports/trial-balance', headers=_auth(two_users['token_a']))
         r_b = client.get('/reports/trial-balance', headers=_auth(two_users['token_b']))
-        assert float(r_a.json()['total_debit']) == 100.0
-        assert float(r_b.json()['total_debit']) == 200.0
+        assert float(r_a.json()['total_debits']) == 100.0
+        assert float(r_b.json()['total_debits']) == 200.0
 
     def test_expense_breakdown_only_reflects_own_entries(self, db, client, two_users):
         _make_posted_bill(db, two_users['user_id_a'], vendor='AliceVendor', total=Decimal('100'))
@@ -208,7 +208,11 @@ class TestReviewIsolation:
         inv_a.status = InvoiceStatus.NEEDS_REVIEW
         db.commit()
 
-        r = client.post(f'/invoices/{inv_a.id}/review', json={'overrides': [{'line_index': 0, 'account_code': '6300'}]}, headers=_auth(two_users['token_b']))
+        r = client.post(
+            f'/invoices/{inv_a.id}/review',
+            json={'overrides': [{'line_id': 1, 'account_code': '6300'}]},
+            headers=_auth(two_users['token_b']),
+        )
         assert r.status_code == 400
         assert 'not found' in r.json()['detail'].lower()
 
@@ -222,8 +226,21 @@ class TestReviewIsolation:
     def test_owner_can_review_their_own_invoice(self, db, client, two_users):
         inv_a = _make_invoice(db, two_users['user_id_a'], total=Decimal('100.00'))
         inv_a.status = InvoiceStatus.NEEDS_REVIEW
+        inv_a.line_items.append(InvoiceLineItems(
+            description='Office supplies',
+            quantity=Decimal('1'),
+            unit_price=Decimal('100.00'),
+            amount=Decimal('100.00'),
+        ))
         db.commit()
-        r = client.post(f'/invoices/{inv_a.id}/review', json={'overrides': [{'line_index': 0, 'account_code': '6300'}]}, headers=_auth(two_users['token_a']))
+        db.refresh(inv_a)
+        line_id = inv_a.line_items[0].id
+
+        r = client.post(
+            f'/invoices/{inv_a.id}/review',
+            json={'overrides': [{'line_id': line_id, 'account_code': '6300'}]},
+            headers=_auth(two_users['token_a']),
+        )
         assert r.status_code in (200, 400)
         if r.status_code == 400:
             assert 'not found' not in r.json()['detail'].lower()
