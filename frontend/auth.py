@@ -1,9 +1,19 @@
 import os
+from datetime import datetime, timedelta, timezone
+import extra_streamlit_components as stx
 import requests
 import streamlit as st
 
+TOKEN_COOKIE = 'aaa_access_token'
+EMAIL_COOKIE = 'aaa_user_email'
+
+COOKIE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
+
 def _backend_url() -> str:
     return os.environ.get('BACKEND_URL', 'http://backend:8000')
+
+def _cookie_manager() -> stx.CookieManager:
+    return stx.CookieManager(key='aaa_auth_cookies')
 
 def _auth_headers() -> dict:
     token = st.session_state.get('access_token')
@@ -17,6 +27,34 @@ def api_post(url: str, **kwargs):
     headers = {**_auth_headers(), **kwargs.pop('headers', {})}
     return requests.post(url, headers=headers, **kwargs)
 
+def _save_auth(token: str, email: str) -> None:
+    st.session_state['access_token'] = token
+    st.session_state['user_email'] = email
+    cm = _cookie_manager()
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=COOKIE_MAX_AGE_SECONDS)
+    cm.set(TOKEN_COOKIE, token, expires_at=expires_at, max_age=COOKIE_MAX_AGE_SECONDS, same_site='lax')
+    cm.set(EMAIL_COOKIE, email, expires_at=expires_at, max_age=COOKIE_MAX_AGE_SECONDS, same_site='lax')
+
+def _clear_auth() -> None:
+    st.session_state.pop('access_token', None)
+    st.session_state.pop('user_email', None)
+    cm = _cookie_manager()
+    cm.delete(TOKEN_COOKIE)
+    cm.delete(EMAIL_COOKIE)
+
+def _restore_auth_from_cookies(cm: stx.CookieManager) -> None:
+    if st.session_state.get('access_token'):
+        return
+
+    token = cm.get(TOKEN_COOKIE) or st.context.cookies.get(TOKEN_COOKIE)
+    if not token:
+        return
+
+    st.session_state['access_token'] = token
+    email = cm.get(EMAIL_COOKIE) or st.context.cookies.get(EMAIL_COOKIE)
+    if email:
+        st.session_state['user_email'] = email
+
 def _session_still_valid() -> bool:
     if not st.session_state.get('access_token'):
         return False
@@ -24,7 +62,12 @@ def _session_still_valid() -> bool:
         r = api_get(f'{_backend_url()}/auth/me', timeout=5)
     except Exception:
         return False
-    return r.status_code == 200
+    if r.status_code != 200:
+        return False
+    body = r.json() if r.headers.get('content-type', '').startswith('application/json') else {}
+    if body.get('email'):
+        st.session_state['user_email'] = body['email']
+    return True
 
 def _show_login_form() -> None:
     st.title('AI Accounting Agent')
@@ -60,8 +103,7 @@ def _attempt(mode: str, email: str, password: str) -> None:
         return
 
     body = r.json()
-    st.session_state['access_token'] = body['access_token']
-    st.session_state['user_email'] = body['email']
+    _save_auth(body['access_token'], body['email'])
     st.rerun()
 
 def _auth_enabled() -> bool:
@@ -69,18 +111,27 @@ def _auth_enabled() -> bool:
         health = requests.get(f'{_backend_url()}/health', timeout=3).json()
     except Exception:
         return False
-    
+
     return bool(health.get('auth_enabled', False))
 
 def require_login() -> None:
+    cm = _cookie_manager()
+
     if not _auth_enabled():
         return
+
+    _restore_auth_from_cookies(cm)
+
+    if not st.session_state.get('access_token') and not st.session_state.get('_auth_cookies_ready'):
+        st.session_state['_auth_cookies_ready'] = True
+        st.rerun()
+
+    _restore_auth_from_cookies(cm)
 
     if _session_still_valid():
         return
 
-    st.session_state.pop('access_token', None)
-    st.session_state.pop('user_email', None)
+    _clear_auth()
     _show_login_form()
     st.stop()
 
@@ -89,6 +140,6 @@ def logout_button() -> None:
         with st.sidebar:
             st.caption(f'Signed in as **{st.session_state["user_email"]}**')
             if st.button('Log out'):
-                st.session_state.pop('access_token', None)
-                st.session_state.pop('user_email', None)
+                _clear_auth()
+                st.session_state.pop('_auth_cookies_ready', None)
                 st.rerun()

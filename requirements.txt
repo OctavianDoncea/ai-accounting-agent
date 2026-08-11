@@ -25,3 +25,4 @@ numpy
 bcrypt
 pyjwt
 email-validator
+extra-streamlit-components
