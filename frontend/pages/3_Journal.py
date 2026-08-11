@@ -61,7 +61,7 @@ m = st.columns(5)
 m[0].metric('Total entries', len(entries))
 m[1].metric('Bills', len(bills))
 m[2].metric('Payments recorded', len(payments))
-m[3].metric('Draft (awaiting reviews)', draft)
+m[3].metric('Draft (awaiting reviews)', len(draft))
 m[4].metric('Total posted value', format_money(total_posted))
 
 # Filters
