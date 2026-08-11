@@ -1,5 +1,4 @@
 import uuid
-from backend.app.models import JournalEntryType
 import jwt as pyjwt
 import pytest
 from datetime import date
@@ -7,7 +6,7 @@ from decimal import Decimal
 from app.config import settings
 from app.models.chart_of_accounts import ChartOfAccount
 from app.models.invoice import Invoice, InvoiceStatus
-from app.models.journal_entry import JournalEntry, JournalEntryStatus, JournalEntryLines
+from app.models.journal_entry import JournalEntry, JournalEntryStatus, JournalEntryLines, JournalEntryType
 
 @pytest.fixture
 def auth_enabled():
