@@ -1,6 +1,5 @@
 import os
 import pandas as pd
-import requests
 import streamlit as st
 from ui_helpers import format_money, format_date, INVOICE_STATUS_BADGE
 from auth import api_get, require_login, logout_button
@@ -15,16 +14,10 @@ logout_button()
 st.title('AI Accounting Agent')
 st.caption('Automated invoice ingestion, classification, and reconciliation, powered by local LLM agents.')
 
-# System status
-try:
-    with st.spinner('Connecting to backend (may take up to a minute if it was sleeping)…'):
-        health = requests.get(f'{BACKEND_URL}/health', timeout=90).json()
-    db_ok = health['database']['ok']
-    ollama_ok = health['ollama']['ok']
-except Exception as e:
-    st.error(f'Backend unreachable at `{BACKEND_URL}`: {e}')
-    st.info('On the free Render tier the API sleeps after ~15 minutes idle. Open the backend URL once to wake it, then refresh this page.')
-    st.stop()  
+# System status (health already fetched inside require_login / wait_for_backend)
+health = st.session_state.get('_backend_health') or {}
+db_ok = health.get('database', {}).get('ok', False)
+ollama_ok = health.get('ollama', {}).get('ok', False)
 
 status_cols = st.columns([1, 1, 6])
 status_cols[0].markdown(f"**Database**  \n{'Online' if db_ok else 'Offline'}")
@@ -37,7 +30,7 @@ st.divider()
 
 # Summary metrics
 try:
-    resp = api_get(f"{BACKEND_URL}/dashboard/summary", timeout=5)
+    resp = api_get(f"{BACKEND_URL}/dashboard/summary", timeout=30)
     resp.raise_for_status()
     summary = resp.json()
 except Exception as exc:

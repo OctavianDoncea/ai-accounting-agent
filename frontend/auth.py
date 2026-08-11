@@ -81,11 +81,16 @@ def _session_still_valid() -> bool:
     if not st.session_state.get('access_token'):
         return False
     try:
-        r = api_get(f'{_backend_url()}/auth/me', timeout=5)
-    except Exception:
+        r = api_get(f'{_backend_url()}/auth/me', timeout=30)
+    except Exception as exc:
+        st.error(f'Could not verify session: {exc}')
+        st.info('The backend may still be waking up. Refresh in a moment.')
+        st.stop()
+    if r.status_code == 401:
         return False
     if r.status_code != 200:
-        return False
+        st.error(f'Session check failed ({r.status_code}). Refresh and try again.')
+        st.stop()
     body = r.json() if r.headers.get('content-type', '').startswith('application/json') else {}
     if body.get('email'):
         st.session_state['user_email'] = body['email']
@@ -128,16 +133,34 @@ def _attempt(mode: str, email: str, password: str) -> None:
     _save_auth(body['access_token'], body['email'])
     st.rerun()
 
-def _auth_enabled() -> bool:
+def _fetch_health(*, timeout: float = 90) -> dict | None:
     try:
-        health = requests.get(f'{_backend_url()}/health', timeout=3).json()
+        r = requests.get(f'{_backend_url()}/health', timeout=timeout)
+        r.raise_for_status()
+        return r.json()
     except Exception:
-        return False
+        return None
 
-    return bool(health.get('auth_enabled', False))
+def wait_for_backend(*, timeout: float = 90) -> dict:
+    """Wait for /health (handles Render cold starts). Stops the script if unreachable."""
+    health = _fetch_health(timeout=5)
+    if health is None:
+        with st.spinner('Connecting to backend (may take up to a minute if it was sleeping)…'):
+            health = _fetch_health(timeout=timeout)
+    if health is None:
+        st.error(f'Backend unreachable at `{_backend_url()}`.')
+        st.info(
+            'On the free Render tier the API sleeps after ~15 minutes idle. '
+            'Open the backend URL once to wake it, then refresh this page.'
+        )
+        st.stop()
+    st.session_state['_backend_health'] = health
+    return health
 
 def require_login() -> None:
-    if not _auth_enabled():
+    health = wait_for_backend()
+
+    if not health.get('auth_enabled', False):
         return
 
     if st.session_state.pop('_auth_force_logout', False):
