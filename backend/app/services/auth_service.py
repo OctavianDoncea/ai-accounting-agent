@@ -41,6 +41,9 @@ def authenticate_user(db: Session, email: str, password: str) -> User:
     return user
 
 def create_access_token(user: User) -> str:
+    if not settings.jwt_secret:
+        raise AuthError('Auth is not enabled on this server.')
+
     now = datetime.now(timezone.utc)
     payload = {
         'sub': str(user.id),

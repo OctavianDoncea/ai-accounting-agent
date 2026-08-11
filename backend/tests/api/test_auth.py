@@ -4,8 +4,8 @@ from app.services.auth_service import authenticate_user, create_access_token, cr
 
 @pytest.fixture
 def auth_enabled():
-    settings.jwt_secret = 'test-signing-secret'
-    yield 'test-signing-secret'
+    settings.jwt_secret = 'test-signing-secret-key-32bytes!!'
+    yield 'test-signing-secret-key-32bytes!!'
     settings.jwt_secret = ''
 
 class TestPasswordHashing:
@@ -127,10 +127,11 @@ class TestSignupAPI:
         r = client.post('/auth/signup', json={'email': 'invalid-email', 'password': 'password123'})
         assert r.status_code == 422
 
-    def test_signup_works_even_when_auth_disabled(self, client):
+    def test_signup_rejected_when_auth_disabled(self, client):
         assert settings.jwt_secret == ''
         r = client.post('/auth/signup', json={'email': 'predisabled@example.com', 'password': 'password123'})
-        assert r.status_code == 201
+        assert r.status_code == 400
+        assert 'not enabled' in r.json()['detail'].lower()
 
 
 class TestLoginAPI:

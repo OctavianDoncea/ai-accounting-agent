@@ -1,6 +1,7 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from app.config import settings
 from app.database import get_db
 from app.schemas.auth import SignupRequest, LoginRequest, TokenResponse, UserOut
 from app.security import get_current_user_email
@@ -11,6 +12,8 @@ logger = logging.getLogger(__name__)
 
 @router.post('/signup', response_model=TokenResponse, status_code=201)
 def signup(payload: SignupRequest, db: Session = Depends(get_db)) -> TokenResponse:
+    if not settings.jwt_secret:
+        raise HTTPException(status_code=400, detail='Auth is not enabled on this server.')
     try:
         user = create_user(db, payload.email, payload.password)
     except AuthError as e:
@@ -20,6 +23,8 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)) -> TokenRespon
 
 @router.post('/login', response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+    if not settings.jwt_secret:
+        raise HTTPException(status_code=400, detail='Auth is not enabled on this server.')
     try:
         user = authenticate_user(db, payload.email, payload.password)
     except AuthError as e:
