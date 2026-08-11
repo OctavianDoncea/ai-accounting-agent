@@ -130,6 +130,14 @@ def require_login() -> None:
     if not _auth_enabled():
         return
 
+    if st.session_state.pop('_auth_force_logout', False):
+        st.session_state.pop('access_token', None)
+        st.session_state.pop('user_email', None)
+        st.session_state.pop('_auth_cookies_ready', None)
+        _delete_auth_cookies(cm)
+        _show_login_form(cm)
+        st.stop()
+
     _restore_auth_from_cookies(cm)
 
     if not st.session_state.get('access_token') and not st.session_state.get('_auth_cookies_ready'):
@@ -157,7 +165,7 @@ def logout_button() -> None:
     with st.sidebar:
         st.caption(f'Signed in as **{st.session_state["user_email"]}**')
         if st.button('Log out'):
-            st.session_state['access_token'] = None
+            st.session_state.pop('access_token', None)
             st.session_state.pop('user_email', None)
             st.session_state['_auth_force_logout'] = True
             st.session_state.pop('_auth_cookies_ready', None)
