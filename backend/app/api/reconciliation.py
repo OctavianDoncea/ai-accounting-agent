@@ -51,7 +51,7 @@ def list_runs(limit: int = 50, db: Session = Depends(get_db), user_id: uuid.UUID
     query = db.query(ReconciliationRun)
     if user_id is not None:
         query = query.filter(ReconciliationRun.user_id == user_id)
-    return db.query(ReconciliationRun).order_by(ReconciliationRun.created_at.desc()).limit(limit).all()
+    return query.order_by(ReconciliationRun.created_at.desc()).limit(limit).all()
 
 @router.get('/runs/{run_id}/export')
 def export_run(run_id: uuid.UUID, db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> Response:
@@ -95,7 +95,14 @@ def _build_report(db: Session, run: ReconciliationRun) -> ReconciliationSummaryO
     ignored = [t for t in txns if t.status == BankTransactionStatus.IGNORED]
 
     matched_je_ids = {t.matched_journal_entry_id for t in matched if t.matched_journal_entry_id}
-    posted = db.query(JournalEntry, Invoice).outerjoin(Invoice, JournalEntry.invoice_id == Invoice.id).filter(JournalEntry.status == JournalEntryStatus.POSTED).all()
+    posted_query = (
+        db.query(JournalEntry, Invoice)
+        .outerjoin(Invoice, JournalEntry.invoice_id == Invoice.id)
+        .filter(JournalEntry.status == JournalEntryStatus.POSTED)
+    )
+    if run.user_id is not None:
+        posted_query = posted_query.filter(JournalEntry.user_id == run.user_id)
+    posted = posted_query.all()
     unmatched_journal = [
         UnmatchedJournalEntryOut(
             journal_entry_id=je.id,

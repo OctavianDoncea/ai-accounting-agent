@@ -15,10 +15,10 @@ from app.services.journal_entry_builder import build_payment_entry
 log = logging.getLogger(__name__)
 
 def run_reconciliation(db: Session, filename: str, content: bytes, user_id=None) -> ReconciliationRun:
-    """Parse a bank statement, match against postred journal emtries, persist a report."""
+    """Parse a bank statement, match against posted journal entries, persist a report."""
     parsed = parse_bank_statement(content)
 
-    run = ReconciliationRun(filename=filename, bank_transaction_count=len(parsed))
+    run = ReconciliationRun(filename=filename, bank_transaction_count=len(parsed), user_id=user_id)
     db.add(run)
     db.flush()
 
@@ -36,7 +36,7 @@ def run_reconciliation(db: Session, filename: str, content: bytes, user_id=None)
         transactions.append(txn)
     db.flush()
 
-    candidates = _load_candidates(db)
+    candidates = _load_candidates(db, user_id=user_id)
     outcome = reconcile(transactions, candidates)
 
     payment_recorded = 0
@@ -84,12 +84,14 @@ def run_reconciliation(db: Session, filename: str, content: bytes, user_id=None)
     return run
 
 def _load_candidates(db: Session, user_id=None) -> list[JournalEntryCandidate]:
-    rows = (
+    query = (
         db.query(JournalEntry, Invoice)
         .outerjoin(Invoice, JournalEntry.invoice_id == Invoice.id)
-        .filter(JournalEntry.status == JournalEntryStatus.POSTED, JournalEntry.entry_type == JournalEntryType.BILL, JournalEntry.user_id == user_id)
-        .all()
+        .filter(JournalEntry.status == JournalEntryStatus.POSTED, JournalEntry.entry_type == JournalEntryType.BILL)
     )
+    if user_id is not None:
+        query = query.filter(JournalEntry.user_id == user_id)
+    rows = query.all()
     candidates = []
     for je, inv in rows:
         vendor = (inv.vendor_name if inv and inv.vendor_name else je.description) or ''
