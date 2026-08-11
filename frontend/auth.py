@@ -1,10 +1,8 @@
 import os
 from datetime import datetime, timedelta, timezone
-
 import extra_streamlit_components as stx
 import requests
 import streamlit as st
-from streamlit.runtime.scriptrunner import get_script_run_ctx
 
 TOKEN_COOKIE = 'aaa_access_token'
 EMAIL_COOKIE = 'aaa_user_email'
@@ -13,19 +11,6 @@ COOKIE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 
 def _backend_url() -> str:
     return os.environ.get('BACKEND_URL', 'http://backend:8000')
-
-
-def _cookie_manager() -> stx.CookieManager:
-    """One CookieManager per script run — Streamlit forbids duplicate keys."""
-    ctx = get_script_run_ctx()
-    run_token = id(ctx) if ctx is not None else None
-    cached = st.session_state.get('_aaa_cm_cache')
-    if cached is not None and cached.get('run_token') == run_token:
-        return cached['cm']
-
-    cm = stx.CookieManager(key='aaa_auth_cookies')
-    st.session_state['_aaa_cm_cache'] = {'run_token': run_token, 'cm': cm}
-    return cm
 
 
 def _auth_headers() -> dict:
@@ -43,10 +28,9 @@ def api_post(url: str, **kwargs):
     return requests.post(url, headers=headers, **kwargs)
 
 
-def _save_auth(token: str, email: str) -> None:
+def _save_auth(token: str, email: str, cm: stx.CookieManager) -> None:
     st.session_state['access_token'] = token
     st.session_state['user_email'] = email
-    cm = _cookie_manager()
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=COOKIE_MAX_AGE_SECONDS)
     cm.set(
         TOKEN_COOKIE, token,
@@ -64,10 +48,7 @@ def _save_auth(token: str, email: str) -> None:
     )
 
 
-def _clear_auth() -> None:
-    st.session_state.pop('access_token', None)
-    st.session_state.pop('user_email', None)
-    cm = _cookie_manager()
+def _delete_auth_cookies(cm: stx.CookieManager) -> None:
     cm.delete(TOKEN_COOKIE, key='aaa_delete_token')
     cm.delete(EMAIL_COOKIE, key='aaa_delete_email')
 
@@ -98,7 +79,7 @@ def _session_still_valid() -> bool:
         st.session_state['user_email'] = body['email']
     return True
 
-def _show_login_form() -> None:
+def _show_login_form(cm: stx.CookieManager) -> None:
     st.title('AI Accounting Agent')
     st.caption('Sign in or create an account to continue.')
 
@@ -108,15 +89,15 @@ def _show_login_form() -> None:
         email = st.text_input('Email', key='login_email')
         password = st.text_input('Password', type='password', key='login_password')
         if st.button('Log in', type='primary', key='login_button'):
-            _attempt('login', email, password)
+            _attempt('login', email, password, cm)
 
     with signup_tab:
         new_email = st.text_input('Email', key='signup_email')
         new_password = st.text_input('Password', type='password', key='signup_password', help='At least 8 characters.')
         if st.button('Create account', type='primary', key='signup_button'):
-            _attempt('signup', new_email, new_password)
+            _attempt('signup', new_email, new_password, cm)
 
-def _attempt(mode: str, email: str, password: str) -> None:
+def _attempt(mode: str, email: str, password: str, cm: stx.CookieManager) -> None:
     if not email or not password:
         st.error('Enter both email and password.')
         return
@@ -132,7 +113,7 @@ def _attempt(mode: str, email: str, password: str) -> None:
         return
 
     body = r.json()
-    _save_auth(body['access_token'], body['email'])
+    _save_auth(body['access_token'], body['email'], cm)
     st.rerun()
 
 def _auth_enabled() -> bool:
@@ -144,7 +125,7 @@ def _auth_enabled() -> bool:
     return bool(health.get('auth_enabled', False))
 
 def require_login() -> None:
-    cm = _cookie_manager()
+    cm = stx.CookieManager(key='aaa_auth_cookies')
 
     if not _auth_enabled():
         return
@@ -160,15 +141,24 @@ def require_login() -> None:
     if _session_still_valid():
         return
 
-    _clear_auth()
-    _show_login_form()
+    had_token = bool(st.session_state.get('access_token'))
+    st.session_state.pop('access_token', None)
+    st.session_state.pop('user_email', None)
+    if had_token:
+        _delete_auth_cookies(cm)
+
+    _show_login_form(cm)
     st.stop()
 
 def logout_button() -> None:
-    if st.session_state.get('user_email'):
-        with st.sidebar:
-            st.caption(f'Signed in as **{st.session_state["user_email"]}**')
-            if st.button('Log out'):
-                _clear_auth()
-                st.session_state.pop('_auth_cookies_ready', None)
-                st.rerun()
+    if not st.session_state.get('user_email'):
+        return
+
+    with st.sidebar:
+        st.caption(f'Signed in as **{st.session_state["user_email"]}**')
+        if st.button('Log out'):
+            st.session_state['access_token'] = None
+            st.session_state.pop('user_email', None)
+            st.session_state['_auth_force_logout'] = True
+            st.session_state.pop('_auth_cookies_ready', None)
+            st.rerun()
