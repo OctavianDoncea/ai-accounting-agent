@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import streamlit as st
 from ui_helpers import format_money, format_date, INVOICE_STATUS_BADGE
-from auth import api_get, require_login, logout_button
+from auth import api_get_ok, require_login, logout_button
 
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://backend:8000')
 
@@ -30,11 +30,12 @@ st.divider()
 
 # Summary metrics
 try:
-    resp = api_get(f"{BACKEND_URL}/dashboard/summary", timeout=30)
-    resp.raise_for_status()
+    with st.spinner('Loading dashboard...'):
+        resp = api_get_ok(f'{BACKEND_URL}/dashboard/summary', attempts=3, timeout=45)
     summary = resp.json()
 except Exception as exc:
-    st.error(f"Could not load dashboard: {exc}")
+    st.error(f'Could not load dashboard: {exc}')
+    st.info('If the backend just woke up, wait a few seconds and refresh.')
     st.stop()
 
 m = st.columns(4)
