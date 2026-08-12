@@ -8,7 +8,7 @@ from starlette.responses import JSONResponse
 from app.config import settings
 from app.services.auth_service import decode_access_token
 
-OPEN_PATHS = {'/health', '/', '/auth/signup', '/auth/login'}
+OPEN_PATHS = {'/health', '/ready', '/', '/auth/signup', '/auth/login'}
 
 def _extract_bearer_token(request: Request) -> str | None:
     header = request.headers.get('Authorization', '')

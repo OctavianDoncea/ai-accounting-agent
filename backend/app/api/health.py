@@ -13,6 +13,22 @@ router = APIRouter(tags=['health'])
 log = logging.getLogger(__name__)
 
 
+@router.get('/ready')
+def ready(db: Session = Depends(get_db)) -> dict:
+    try:
+        db.execute(text('SELECT 1'))
+        db_ok = True
+        error = None
+    except Exception as exc:
+        db_ok = False
+        error = str(exc)
+    return {
+        'ready': db_ok,
+        'auth_enabled': bool(settings.jwt_secret),
+        'error': error,
+    }
+
+
 @router.get('/health')
 def health(db: Session = Depends(get_db)) -> dict:
     """Reports the status of every dependency the backend relies on."""

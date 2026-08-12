@@ -7,6 +7,13 @@ class TestHealth:
         assert 'ollama' in body
         assert body['database']['ok'] is True
 
+    def test_ready_reports_database(self, client):
+        r = client.get('/ready')
+        assert r.status_code == 200
+        body = r.json()
+        assert body['ready'] is True
+        assert 'auth_enabled' in body
+
     def test_chart_of_accounts_count_visible(self, client):
         body = client.get('/health').json()
         assert body['database']['chart_of_accounts_count'] > 0

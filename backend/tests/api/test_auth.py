@@ -189,6 +189,11 @@ class TestAuthGate:
         r = client.get('/health')
         assert r.status_code == 200
 
+    def test_ready_open_regardless(self, client, auth_enabled):
+        r = client.get('/ready')
+        assert r.status_code == 200
+        assert r.json()['ready'] is True
+
     def test_health_reports_auth_enabled_flag(self, client, auth_enabled):
         assert client.get('/health').json()['auth_enabled'] is True
 
