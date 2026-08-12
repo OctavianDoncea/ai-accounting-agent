@@ -1,10 +1,19 @@
 """Streamlit auth helpers."""
+from __future__ import annotations
+
 import json
 import os
 import time
 import requests
 import streamlit as st
-from streamlit_js_eval import streamlit_js_eval
+
+try:
+    from streamlit_js_eval import streamlit_js_eval
+except ImportError as exc:  # pragma: no cover - deployment misconfig
+    raise ImportError(
+        'Missing dependency streamlit-js-eval. '
+        'Add it to requirements.txt and reboot the Streamlit app.'
+    ) from exc
 
 TOKEN_KEY = 'aaa_access_token'
 EMAIL_KEY = 'aaa_user_email'
@@ -217,7 +226,7 @@ def wait_for_backend(*, timeout: float = 120) -> dict:
 
     ready_info = _probe_ready(timeout=10)
     if ready_info is None:
-        with st.spinner('Connecting to backend (may take up to a minute if it was sleeping)…'):
+        with st.spinner('Connecting to backend (may take up to a minute if it was sleeping)...'):
             while time.monotonic() < deadline:
                 ready_info = _probe_ready(timeout=15)
                 if ready_info is not None:
