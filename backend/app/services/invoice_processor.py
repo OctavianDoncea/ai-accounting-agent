@@ -3,6 +3,7 @@ import uuid
 from sqlalchemy.orm import Session
 from app.agents.extraction_agent import ExtractionAgent
 from app.agents.classification_agent import ClassificationAgent
+from app.services.vendor_memory_service import record_post, preffered_account
 from app.agents.validation_agents import validate_entry
 from app.database import SessionLocal
 from app.models.agent_log import AgentLogStatus
@@ -163,7 +164,7 @@ def _classify_and_post(db: Session, invoice: Invoice) -> None:
     if existing:
         db.commit()
 
-    # Step 4: Classification agent
+    # Step 4: Classification agent + Vendor memory
     try:
         with time_step(db, invoice_id=invoice.id, user_id=invoice.user_id, agent_name='classification_agent', step_name='classify_line_items', input_data={'line_item_count': len(invoice.line_items)}) as ctx:
             accounts = _classifiable_accounts(db)
@@ -181,6 +182,27 @@ def _classify_and_post(db: Session, invoice: Invoice) -> None:
     except Exception as e:
         _fail(db, invoice, f'Classification failed: {e}')
         return
+
+    remembered_code = preffered_account(db, invoice.user_id, invoice.vendor_name)
+    memory_applied = 0
+
+    if remembered_code is not None:
+        valid_codes = {a.account_code for a in _classifiable_accounts(db)}
+
+        if remembered_code in valid_codes:
+            with time_step(db, invoice_id=invoice.id, user_id=invoice.user_id, agent_name='vendor_memory', step_name='apply_vendor_memory', input_data={'vendor': invoice.vendor_name, 'remembered_account': remembered_code}) as ctx:
+                for c in result.classifications:
+                    if c.confidence < CLASSIFICATION_POST_THRESHOLD and c.account_code != remembered_code:
+                        c.account_code = remembered_code
+                        c.confidence = max(c.confidence, CLASSIFICATION_POST_THRESHOLD)
+                        memory_applied += 1
+
+                ctx['output_data'] = {'lines_overriden': memory_applied}
+                ctx['reasoning'] = (
+                    f"Applied remembered account {remembered_code} for known vendor '{invoice.vendor_name}' to {memory_applied} low-confidence line(s)."
+                    if memory_applied
+                    else f"Vendor '{invoice.vendor_name}' is known (account {remembered_code}), but all lines were already confident, no override needed."
+                )
 
     # Step 5: Build the journal entry (deterministic)
     builder_notes: list[str] = []
@@ -229,6 +251,11 @@ def _classify_and_post(db: Session, invoice: Invoice) -> None:
         invoice.status = InvoiceStatus.POSTED
         final_reason = 'Journal entry validated and posted.'
         final_status = AgentLogStatus.SUCCESS
+
+        try:
+            record_post(db, invoice, entry)
+        except Exception:
+            log.exception(f'vendor memory failed for invoice {invoice.id} (non-fatal)')
     else:
         entry.status = JournalEntryStatus.DRAFT
         invoice.status = InvoiceStatus.NEEDS_REVIEW
