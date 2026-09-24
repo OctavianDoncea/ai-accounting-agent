@@ -8,6 +8,7 @@ from app.schemas.journal_entry import ClassificationResult, LineClassification, 
 from app.schemas.review import LineOverride
 from app.services.agent_logger import write_log
 from app.services.journal_entry_builder import build_journal_entry
+from app.services.vendor_memory_service import record_post
 
 log = logging.getLogger(__name__)
 
@@ -61,6 +62,13 @@ def submit_review(db: Session, invoice_id, overrides: list[LineOverride], tax_ac
 
     db.add_all([entry, invoice])
     db.commit()
+
+    if validation.is_valid:
+        try:
+            record_post(db, invoice, entry)
+        except Exception:
+            pass
+
     db.refresh(entry)
     db.refresh(invoice)
 
