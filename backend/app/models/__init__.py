@@ -4,6 +4,7 @@ from app.models.journal_entry import JournalEntry, JournalEntryLines, JournalEnt
 from app.models.agent_log import AgentLog, AgentLogStatus
 from app.models.bank_transaction import ReconciliationRun, BankTransaction, TransactionDirection, BankTransactionStatus
 from app.models.user import User
+from app.models.vendor_memory import VendorAccountMemory, normalize_vendor
 
 __all__ = [
     "ChartOfAccount",
@@ -23,4 +24,6 @@ __all__ = [
     "TransactionDirection",
     "BankTransactionStatus",
     "User",
+    "VendorAccountMemory",
+    "normalize_vendor",
 ]
