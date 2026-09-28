@@ -17,8 +17,8 @@ class VendorAccountMemory(Base):
     vendor_display: Mapped[str] = mapped_column(String(320), nullable=False)
     account_code: Mapped[str] = mapped_column(String(20), nullable=False)
     times_seen: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-    created_At: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_At: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
 def normalize_vendor(name: str | None) -> str:

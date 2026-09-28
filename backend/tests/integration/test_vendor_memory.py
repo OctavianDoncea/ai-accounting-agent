@@ -2,13 +2,12 @@ import uuid
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.journal_entry import JournalEntry, JournalEntryLines, JournalEntryStatus
 from app.models.chart_of_accounts import  ChartOfAccount
-from app.models.vendor_memory import VendorMemory, normalize_vendor
+from app.models.vendor_memory import VendorAccountMemory, normalize_vendor
 from app.services import invoice_processor
 from app.services.vendor_memory_service import preffered_account, record_post, vendor_stats
-from backend.app.models import VendorAccountMemory
 from tests.conftest import cloudhost_classification_response, cloudhost_extract_response
 
-SAMPLE = 'samples\invoice_cloudhost.pdf'
+SAMPLE = 'samples/invoice_cloudhost.pdf'
 
 _invoice_seq = 0
 
