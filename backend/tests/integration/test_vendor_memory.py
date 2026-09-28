@@ -1,13 +1,14 @@
 import uuid
+import pytest
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.journal_entry import JournalEntry, JournalEntryLines, JournalEntryStatus
 from app.models.chart_of_accounts import  ChartOfAccount
 from app.models.vendor_memory import VendorAccountMemory, normalize_vendor
 from app.services import invoice_processor
 from app.services.vendor_memory_service import preffered_account, record_post, vendor_stats
-from tests.conftest import cloudhost_classification_response, cloudhost_extract_response
+from tests.conftest import SAMPLE_PDF, cloudhost_classification_response, cloudhost_extract_response
 
-SAMPLE = 'samples/invoice_cloudhost.pdf'
+pytestmark = pytest.mark.usefixtures('mock_ocr')
 
 _invoice_seq = 0
 
@@ -23,11 +24,10 @@ def _process(db, mock_llm, extract, classify) -> uuid.UUID:
     }
     mock_llm['extraction'].chat_json.return_value = extract
     mock_llm['classification'].chat_json.return_value = classify
-    inv = Invoice(id=uuid.uuid4(), filename='invoice_cloudhost.pdf', file_path=SAMPLE, status=InvoiceStatus.PENDING)
+    inv = Invoice(id=uuid.uuid4(), filename='invoice_cloudhost.pdf', file_path=SAMPLE_PDF, status=InvoiceStatus.PENDING)
     db.add(inv)
     db.commit()
     iid = inv.id
-    db.close()
     invoice_processor.process_invoice(iid)
 
     return iid
