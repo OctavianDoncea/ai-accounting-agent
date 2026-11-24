@@ -95,7 +95,6 @@ def _preprocess_for_ocr(pil_img: Image.Image) -> tuple[Image.Image, float]:
     """Deskew, denoise, and adaptive-threshold an image before OCR."""
     img = pil_img.convert('RGB')
 
-    # Downscaleing oversized phone photos
     w, h = img.size
     if max(w, h) > MAX_IMAGE_DIMENSION:
         scale = MAX_IMAGE_DIMENSION / max(w, h)
@@ -110,7 +109,7 @@ def _preprocess_for_ocr(pil_img: Image.Image) -> tuple[Image.Image, float]:
         threshold = cv2.threshold(grey, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
         coords = np.column_stack(np.where(threshold > 0))
 
-        if coords.size() > 0:
+        if coords.size > 0:
             raw_angle = cv2.minAreaRect(coords)[-1]
             angle = -(90 + raw_angle) if raw_angle < -45 else -raw_angle
             if abs(angle) > 0.1:
