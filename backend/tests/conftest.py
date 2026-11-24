@@ -1,4 +1,5 @@
 import os
+import socket
 import tempfile
 import uuid
 import pytest
@@ -9,14 +10,38 @@ from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import text
+
+def _use_published_postgres() -> None:
+    host = os.environ.get('POSTGRES_HOST', 'postgres')
+    if host != 'postgres':
+        return
+    try:
+        socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        os.environ['POSTGRES_HOST'] = 'localhost'
+
+_use_published_postgres()
+
 from app.database import SessionLocal
 from app.main import app
 from app.models.invoice import Invoice, InvoiceStatus, InvoiceLineItems
 from app.models.journal_entry import JournalEntry, JournalEntryStatus
 os.environ.setdefault('UPLOAD_DIR', tempfile.mkdtemp(prefix='test_uploads_'))
 
+_BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
 # Database
-TABLES_TO_TRUNCATE = ('bank_transactions', 'reconciliation_runs', 'journal_entry_lines', 'journal_entries', 'agent_logs', 'invoice_line_items', 'invoices', 'users')
+TABLES_TO_TRUNCATE = (
+    'bank_transactions',
+    'reconciliation_runs',
+    'journal_entry_lines',
+    'journal_entries',
+    'agent_logs',
+    'invoice_line_items',
+    'invoices',
+    'vendor_account_memory',
+    'users',
+)
 
 def _resolve_sample_pdf() -> str:
     """Prefer CI-copied /samples path; fall back to repo samples/ for local runs."""
@@ -35,10 +60,15 @@ SAMPLE_OCR_TEXT = (
     'Cloud hosting Object storage Managed DB subtotal tax total 414.60'
 )
 
+def _alembic_config() -> Config:
+    cfg = Config(os.path.join(_BACKEND_DIR, 'alembic.ini'))
+    cfg.set_main_option('script_location', os.path.join(_BACKEND_DIR, 'migrations'))
+    return cfg
+
 @pytest.fixture(scope='session', autouse=True)
 def _ensure_schema():
     """Apply migrations and seed before any test touches the DB."""
-    command.upgrade(Config('alembic.ini'), 'head')
+    command.upgrade(_alembic_config(), 'head')
     from app.seed.run_seed import seed_chart_of_accounts
     seed_chart_of_accounts()
 
