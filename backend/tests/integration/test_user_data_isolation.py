@@ -10,7 +10,7 @@ from app.models.journal_entry import JournalEntry, JournalEntryStatus, JournalEn
 
 @pytest.fixture
 def auth_enabled():
-    settings.jwt_secret = 'isolation-test-secret-key-32b!!'
+    settings.jwt_secret = 'isolation-test-secret-key-32bytes!!'
     yield
     settings.jwt_secret = ''
 

@@ -99,7 +99,7 @@ class TestTokens:
     def test_token_signed_with_different_secret_is_rejected(self, db, auth_enabled):
         user = create_user(db, 'person@example.com', 'password123')
         token = create_access_token(user)
-        settings.jwt_secret = 'different-secret'
+        settings.jwt_secret = 'different-signing-secret-32bytes!!'
         import jwt as pyjwt
         with pytest.raises(pyjwt.PyJWTError):
             decode_access_token(token)
