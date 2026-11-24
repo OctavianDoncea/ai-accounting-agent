@@ -1,10 +1,13 @@
+import asyncio
+import json
 import logging
 import os
 import uuid
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
+from sse_starlette.sse import EventSourceResponse
 from app.config import settings
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models.agent_log import AgentLog
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.journal_entry import JournalEntry, JournalEntryType
@@ -81,6 +84,67 @@ def get_invoice_logs(invoice_id: uuid.UUID, db: Session = Depends(get_db), user_
     if invoice is None:
         raise HTTPException(status_code=404, detail='Invoice not found.')
     return (db.query(AgentLog).filter(AgentLog.invoice_id == invoice_id).order_by(AgentLog.created_at.desc()).all())
+
+# Statuses that mean processing is finished — the stream closes once reached.
+_TERMINAL_STATUSES = {
+    InvoiceStatus.POSTED,
+    InvoiceStatus.NEEDS_REVIEW,
+    InvoiceStatus.DUPLICATE,
+    InvoiceStatus.FAILED,
+}
+
+@router.get('/{invoice_id}/stream')
+async def stream_invoice_progress(invoice_id: uuid.UUID, request: Request, user_id: uuid.UUID | None = Depends(get_current_user_id)):
+    with SessionLocal() as db:
+        invoice = _get_owned_invoice(db, invoice_id, user_id)
+        if invoice is None:
+            raise HTTPException(status_code=404, detail='Invoice not found.')
+
+    async def event_generator():
+        last_signature = None
+        for _ in range(300):
+            if await request.is_disconnected():
+                break
+
+            with SessionLocal() as db:
+                inv = db.get(Invoice, invoice_id)
+                if inv is None:
+                    yield {'event': 'error', 'data': json.dumps({'detail': 'Invoice disappeared.'})}
+                    return
+                logs = (
+                    db.query(AgentLog)
+                    .filter(AgentLog.invoice_id == invoice_id)
+                    .order_by(AgentLog.created_at.asc())
+                    .all()
+                )
+                status = inv.status.value
+                last_step = logs[-1].step_name if logs else None
+                last_agent = logs[-1].agent_name if logs else None
+                steps_done = len([entry for entry in logs if entry.status.value != 'FAILED'])
+                is_terminal = inv.status in _TERMINAL_STATUSES
+
+            signature = (status, last_step, steps_done)
+            if signature != last_signature:
+                last_signature = signature
+                yield {
+                    'event': 'progress',
+                    'data': json.dumps({
+                        'status': status,
+                        'last_step': last_step,
+                        'last_agent': last_agent,
+                        'steps_done': steps_done,
+                    }),
+                }
+
+            if is_terminal:
+                yield {'event': 'done', 'data': json.dumps({'status': status})}
+                return
+
+            await asyncio.sleep(1)
+
+        yield {'event': 'timeout', 'data': json.dumps({'detail': 'Still processing; reload to check status.'})}
+
+    return EventSourceResponse(event_generator())
 
 @router.post('/{invoice_id}/reprocess', response_model=UploadResponse)
 def reprocess_invoice(invoice_id: uuid.UUID, background_tasks: BackgroundTasks, db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(get_current_user_id)) -> UploadResponse:
