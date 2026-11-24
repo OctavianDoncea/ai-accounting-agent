@@ -37,6 +37,13 @@ def api_post(url: str, **kwargs):
     headers = {**_auth_headers(), **kwargs.pop('headers', {})}
     return requests.post(url, headers=headers, **kwargs)
 
+def stream_url(url: str) -> str:
+    token = st.session_state.get('access_token')
+    if not token:
+        return url
+    sep = '&' if '?' in url else '?'
+    return f'{url}{sep}access_token={token}'
+
 def require_ok(resp: requests.Response) -> requests.Response:
     if resp.status_code == 401:
         _clear_stored_auth(clear_storage=True)

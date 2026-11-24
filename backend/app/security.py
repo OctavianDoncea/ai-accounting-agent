@@ -1,5 +1,5 @@
-"""JWT-based auth: a global middleware gates every route except a small allowlist.
-"""
+"""JWT-based auth: a global middleware gates every route except a small allowlist."""
+
 import uuid
 from fastapi import HTTPException, Request
 from jwt import PyJWTError
@@ -16,6 +16,13 @@ def _extract_bearer_token(request: Request) -> str | None:
         return None
     return header[len('Bearer '):]
 
+def _extract_request_token(request: Request) -> str | None:
+    """Bearer header, or an access_token query param on /stream paths."""
+    token = _extract_bearer_token(request)
+    if token is None and request.url.path.endswith('/stream'):
+        token = request.query_params.get('access_token') or None
+    return token
+
 class JWTAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if not settings.jwt_secret:
@@ -24,7 +31,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         if request.url.path in OPEN_PATHS:
             return await call_next(request)
 
-        token = _extract_bearer_token(request)
+        token = _extract_request_token(request)
         if token is None:
             return JSONResponse({'detail': 'Not authenticated.'}, status_code=401)
 
@@ -55,7 +62,7 @@ def get_current_user_id(request: Request) -> uuid.UUID | None:
     if not settings.jwt_secret:
         return None
 
-    token = _extract_bearer_token(request)
+    token = _extract_request_token(request)
     if token is None:
         return None
 
