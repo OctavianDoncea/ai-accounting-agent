@@ -1,4 +1,3 @@
-from turtle import st
 import uuid
 from datetime import date
 from decimal import Decimal
@@ -186,7 +185,7 @@ def ap_aging(db: Session = Depends(get_db), user_id: uuid.UUID | None = Depends(
             invoice_id = str(je.invoice_id) if je.invoice_id is not None else None,
             journal_entry_id = str(je.id),
             vendor_name = (inv.vendor_name if inv and inv.vendor_name else je.description) or '-',
-            invoice_number = inv.number if inv else None,
+            invoice_number = inv.invoice_number if inv else None,
             entry_date = je.entry_date,
             days_outstanding = days,
             bucket = bucket,
