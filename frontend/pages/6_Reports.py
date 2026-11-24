@@ -31,7 +31,7 @@ else:
     rows = []
     for r in tb['rows']:
         rows.append({
-            'Code': r['account_type'],
+            'Code': r['account_code'],
             'Account': r['account_name'],
             'Type': r['account_type'],
             'Debits': format_money(r['total_debits']),
@@ -75,3 +75,68 @@ else:
         df_display = df.copy()
         df_display['Total'] = df_display['Total'].map(format_money)
         st.dataframe(df_display, width='stretch', hide_index=True)
+
+st.divider()
+
+# Accounts payable aging
+st.subheader('Accounts Payable aging')
+st.caption("Posted bills that have not been paid yet, grouped by how long they have been outstanding. A bill counts as paid once reconciliation matches a bank payment to it.")
+
+try:
+    aging_resp = api_get(f'{BACKEND_URL}/reports/ap-aging', timeout=10)
+    aging_resp.raise_for_status()
+    aging = aging_resp.json()
+except Exception as e:
+    st.error(f'Could not load AP aging: {e}')
+    aging = None
+
+if aging is not None:
+    if not aging['rows']:
+        st.success('Nothing outstanding. Every posted bill has been paid, or there are no bills yet.')
+    else:
+        bucket_cols = st.columns(len(aging['buckets']) + 1)
+        bucket_labels = {'0-30': '0-30 days', '31-60': '31-60 days', '61-90': '61-90 days', '90+': '90+ days'}
+        for i, b in enumerate(aging['buckets']):
+            bucket_cols[i].metric(bucket_labels.get(b['bucket'], b['bucket']), format_money(b['total']), f"{b['count']} bill(s)")
+        bucket_cols[-1].metric('Total outstanding', format_money(aging['total_outstanding']))
+
+        aging_rows = []
+        for r in aging['rows']:
+            aging_rows.append({
+                'Vendor': r['vendor_name'],
+                'Invoice #': r['invoice_number'] or '-',
+                'Entry date': r['entry_date'],
+                'Days outstanding': r['days_outstanding'],
+                'Bucket': bucket_labels.get(r['bucket'], r['bucket']),
+                'Amount': format_money(r['amount']),
+            })
+        st.dataframe(pd.DataFrame(aging_rows), width='stretch', hide_index=True)
+
+st.divider()
+
+# Vendor memory
+st.subheader('Vendor memory')
+st.caption("Which GL account each vendor's invoices have been posted to, and how many times. The system uses this history to correct uncertain classifications.")
+
+try:
+    vendors_resp = api_get(f'{BACKEND_URL}/reports/vendor-memory', timeout=10)
+    vendors_resp.raise_for_status()
+    vendors = vendors_resp.json()
+except Exception as e:
+    st.error(f'Could not load vendor memory: {e}')
+    vendors = None
+
+if vendors is not None:
+    if not vendors:
+        st.info('No vendor history yet. Once invoices post, the accounts they classify into are remembered here.')
+    else:
+        vrows = []
+        for v in vendors:
+            accounts_str = ', '.join(f"{a['account_code']} (x{a['times_seen']})" for a in v['accounts'])
+            vrows.append({
+                'Vendor': v['vendor'],
+                'Invoices posted': v['total_posts'],
+                'Learned account(s)': accounts_str,
+            })
+        st.dataframe(pd.DataFrame(vrows), width='stretch', hide_index=True)
+        st.caption(f'**{len(vendors)}** vendor(s) learned so far.')
